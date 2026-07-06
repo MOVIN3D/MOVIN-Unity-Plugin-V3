@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fcf7219bab7fe46a1ad266029b2fee19, type: 3}
+  m_Name: Readme
+  m_EditorClassIdentifier: 
+  icon: {fileID: 2800000, guid: 727a75301c3d24613a3ebcec4a24c2c8, type: 3}
+  title: MOVIN Unity Plugin V3
+  sections:
+  - heading: Overview
+    text: Unity sample project and import package for receiving MOVIN/VMC motion capture streams over OSC/UDP.
+    linkText:
+    url:
+  - heading: Quick Start
+    text: Open Assets/MOVIN/Scenes/Sample_MOVINman.unity, enter Play mode, and stream VMC Protocol OSC data to UDP port 11235.
+    linkText:
+    url:
+  - heading: Included Samples
+    text: Sample_MOVINman uses Assets/MOVIN/Character/MOVINman/MOVINman_V3.fbx. Sample_Ch14 and Sample_Ch29 provide additional Mixamo character setups.
+    linkText:
+    url:
+  - heading: Receiver Components
+    text: VMCReceiver listens for OSC/VMC messages. MOVIN.Core.MocapReceiver applies streamed root and bone poses to a character hierarchy. VMCReceiverMonitorUI shows packet, frame, drop, latency, and validation status at runtime.
+    linkText:
+    url:
+  - heading: Validation Logs
+    text: Validation logs default to Documents/MOVIN Studio/StreamValidation/Unity unless Validation Log Directory is set on the receiver.
+    linkText:
+    url:
+  - heading: VMC Protocol
+    text:
+    linkText: Read the VMC Protocol reference
+    url: https://protocol.vmc.info/english.html
+  loadedLayout: 1
