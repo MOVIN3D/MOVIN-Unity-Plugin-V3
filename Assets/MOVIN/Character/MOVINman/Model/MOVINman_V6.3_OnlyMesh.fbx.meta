@@ -1,9 +1,29 @@
 fileFormatVersion: 2
-guid: 3d1035006edd86740b79908d1c76174f
+guid: c74e811cd078a304f8a6300cdea52e89
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: movincyan
+    second: {fileID: 2100000, guid: 165829ae3487ef44ebe2700fef916e91, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: movingreen
+    second: {fileID: 2100000, guid: 4dd64a7488fc2194e9eab4c4a8b4e1e6, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: movinviolet
+    second: {fileID: 2100000, guid: 6870049ea4e019a4fabd78d9a2a2d0eb, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: movinwhite
+    second: {fileID: 2100000, guid: ace1cdc864b300e43a48461a809e844c, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
