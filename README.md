@@ -1,4 +1,4 @@
-# MOVIN Unity Plugin V3
+# MOVIN Unity Plugin V3 (for MOVIN Studio v3.0.0+)
 
 MOVIN Unity Plugin V3 is a Unity sample project and import package for receiving MOVIN/VMC motion capture data over OSC/UDP, previewing streamed characters, and checking stream health in Unity.
 
