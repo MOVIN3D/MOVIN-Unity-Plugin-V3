@@ -7,6 +7,7 @@ using UnityEngine.UIElements;
 [DisallowMultipleComponent]
 public class VMCReceiverMonitorUI : MonoBehaviour
 {
+    private const string DefaultThemeResourcePath = "MOVIN/MOVINDefaultRuntimeTheme";
     private const int MinimumPanelWidth = 320;
     private const int RowLabelWidth = 220;
     private const float MinPanelHeightRatio = 0.25f;
@@ -31,6 +32,8 @@ public class VMCReceiverMonitorUI : MonoBehaviour
     [Header("Display")]
     public bool visible = true;
     public bool createUIDocumentIfMissing = true;
+    [Tooltip("Optional theme for the runtime panel. Leave empty to use the theme shipped with MOVIN.")]
+    public ThemeStyleSheet themeStyleSheet;
     public bool showDebugDetails = false;
     public float refreshInterval = 0.2f;
     public int panelWidth = 460;
@@ -175,11 +178,27 @@ public class VMCReceiverMonitorUI : MonoBehaviour
             _createdPanelSettings.name = "MOVIN Receiver Monitor Panel";
             _createdPanelSettings.scaleMode = PanelScaleMode.ConstantPixelSize;
             _createdPanelSettings.sortingOrder = 100;
+            // Unity only auto-assigns a theme when PanelSettings is created as an asset in the
+            // Editor, so a panel built at runtime has to supply one or UI Toolkit warns and
+            // leaves the panel unstyled.
+            _createdPanelSettings.themeStyleSheet = ResolveThemeStyleSheet();
             _document.panelSettings = _createdPanelSettings;
         }
 
         if (!_document.enabled)
             _document.enabled = true;
+    }
+
+    private ThemeStyleSheet ResolveThemeStyleSheet()
+    {
+        if (themeStyleSheet)
+            return themeStyleSheet;
+
+        var theme = Resources.Load<ThemeStyleSheet>(DefaultThemeResourcePath);
+        if (!theme)
+            Debug.LogWarning($"VMCReceiverMonitorUI could not load '{DefaultThemeResourcePath}'. Assign a Theme Style Sheet to render the monitor panel.", this);
+
+        return theme;
     }
 
     private void BuildPanel()
