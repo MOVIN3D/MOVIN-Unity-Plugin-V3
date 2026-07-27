@@ -57,7 +57,7 @@ MOVIN Unity Plugin V3 is a Unity sample project and import package for receiving
 ## Sample Scenes
 
 - `Assets/MOVIN/Scenes/Sample_MOVINman.unity`
-  MOVINman V3 sample using `Assets/MOVIN/Character/MOVINman/MOVINman_V3.fbx`
+  MOVINman V3 sample using `Assets/MOVIN/Character/MOVINman/MOVINman_V3.prefab`
 - `Assets/MOVIN/Scenes/Sample_Ch14.unity`
   Mixamo Ch14 sample
 - `Assets/MOVIN/Scenes/Sample_Ch29.unity`
@@ -71,15 +71,17 @@ For best results, use the same `.fbx` character model in MOVIN Studio and Unity.
 2. Place the character in the scene.
 3. Add `MOVIN.Core.MocapReceiver` to the character root GameObject.
 4. Keep `Listen Port` at `11235`, or set it to the port used by your sender.
-5. Leave `Root Bone Name` empty for automatic armature detection. Set it only if the receiver cannot find the correct armature.
+5. Leave `Root Bone Name` empty. The receiver detects the skeleton root, and if that guess falls short it adopts the root name the sender includes in every root pose. Set it only to pin a specific root, such as driving the upper body alone.
 6. Optionally add `VMCReceiverMonitorUI` to the same GameObject to show runtime diagnostics.
+
+`Scale Bone Objects` is on by default and only affects rigs that draw their bones as meshes, where every joint owns a `<bone>BoneObject` child. On such a rig those helper meshes are scaled so the drawn bones keep reaching the next joint when the streamed bone lengths differ from the character's rest pose. A plain `.fbx` with a joint hierarchy and one skinned mesh has no helper objects, so the option does nothing.
 
 ## Core Components
 
 - `VMCReceiver`
   Lightweight OSC/UDP VMC receiver. It listens on port `11235` by default, parses VMC messages, buffers motion frames, and dispatches data on Unity's main thread.
 - `MOVIN.Core.MocapReceiver`
-  Applies streamed root and bone poses to a Unity character hierarchy.
+  Applies streamed root and bone poses to a Unity character hierarchy, and scales `<bone>BoneObject` helper meshes on rigs that draw their bones as meshes.
 - `VMCReceiverMonitorUI`
   Runtime monitor for socket FPS, input FPS, applied frame FPS, frame drops, playback latency, queue size, processing errors, and validation state.
 
@@ -134,6 +136,8 @@ Documents/MOVIN Studio/StreamValidation/Unity
   Check the sender destination IP, UDP port `11235`, firewall rules, and whether another app is already using the same port.
 - Packets arrive but the character does not move:
   Confirm that `MocapReceiver` is on the character root, the streamed bone names match the Unity hierarchy, and `Root Bone Name` is set only when needed.
+- Only part of the character moves, such as the upper body:
+  The mapped bones stop short of the rest of the skeleton. `MocapReceiver` logs a warning naming every streamed bone it could not match, so check the Console and then set `Root Bone Name` to the top of your skeleton, for example `RootBone` or `Hips`.
 - Motion is delayed or frames are dropped:
   Check Unity performance, monitor `Pose Buffer` and `Dropped`, and tune `maxBufferedFramesBeforeDrop` if needed.
 - The Unity package is missing or tiny after cloning:
@@ -148,6 +152,7 @@ Assets/
       MOVINman/
       Ch14_mixamo/
       Ch29_mixamo/
+    Resources/
     Scenes/
     Scripts/
     Tests/
