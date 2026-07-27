@@ -9,7 +9,6 @@ MOVIN Unity Plugin V3 is a Unity sample project and import package for receiving
 - MOVINman V3 and Mixamo sample characters
 - Sample scenes for quick smoke testing
 - Runtime receiver monitor UI
-- Optional stream diagnostics and validation logging
 - `MOVIN-Unity-Plugin-V3.unitypackage` for importing the plugin into another Unity project
 
 ## Requirements
@@ -52,7 +51,7 @@ MOVIN Unity Plugin V3 is a Unity sample project and import package for receiving
 3. In MOVIN Studio or another VMC sender, set the Unity machine as the destination.
 4. Send VMC/OSC UDP data to port `11235`.
 5. If packets do not arrive, allow inbound UDP traffic for Unity on port `11235` in the firewall.
-6. Check the on-screen `MOVIN Receiver` monitor for packet rate, applied frames, dropped frames, latency, and validation state.
+6. Check the on-screen `MOVIN Receiver` monitor for packet rate, applied frames, dropped frames, and latency.
 
 ## Sample Scenes
 
@@ -65,7 +64,7 @@ MOVIN Unity Plugin V3 is a Unity sample project and import package for receiving
 
 ## Using Your Own Character
 
-For best results, use the same `.fbx` character model in MOVIN Studio and Unity. At minimum, the Unity character should have the same bone naming hierarchy as the streamed data.
+Use the same character model in MOVIN Studio and Unity. This is required rather than a preference, because the receiver applies streamed bone positions as well as rotations: the skeleton takes both its bone names and its proportions from the model loaded in MOVIN Studio. A different model ends up driven by foreign bone lengths, and any bone whose name does not match is left behind entirely.
 
 1. Import your character model into Unity.
 2. Place the character in the scene.
@@ -87,15 +86,12 @@ For best results, use the same `.fbx` character model in MOVIN Studio and Unity.
 
 ## Supported VMC Messages
 
-Common supported messages include:
+MOVIN motion arrives on two addresses, and these are the only ones the plugin applies to a character:
 
 - `/VMC/Ext/Root/Pos`
 - `/VMC/Ext/Bone/Pos`
-- `/VMC/Ext/Blend/Val`
-- `/VMC/Ext/Blend/Apply`
-- `/VMC/Ext/Cam`
 
-The receiver also exposes events for HMD, controller, tracker, camera, blendshape, root, and bone data.
+The receiver also parses the rest of the common VMC surface, including `/VMC/Ext/Blend/Val`, `/VMC/Ext/Blend/Apply`, `/VMC/Ext/Cam`, and the HMD, controller, and tracker addresses. Those are exposed as C# events for your own code to handle. The plugin does not consume them and ships no blendshape or camera handling of its own.
 
 ## Frame Buffering and Drops
 
@@ -108,23 +104,11 @@ MOVIN motion frames are buffered by frame index on the socket receive thread and
 - The default drop threshold is `6`, which is about `0.1` seconds of buffered motion at a 60 FPS sender.
 - Dropped frames are shown in the monitor so slow rendering is visible instead of silently increasing latency.
 
-## Stream Diagnostics and Validation
+## Stream Validation
 
-Validation logging is enabled by default. MOVIN Studio can control a validation session with:
+The `Validation Logging` fields on the receiver, and the `Validation` row in the monitor, belong to a diagnostic MOVIN uses when tracing a stream problem. MOVIN Studio starts and stops the session, so leave these at their defaults and ignore them during normal use. Nothing is written unless MOVIN Studio asks for it.
 
-- `/MOVIN/StreamValidation/Begin`
-  Arguments: `sessionId`, `target`, reserved value, output directory. `target` must be `Unity`.
-- `/MOVIN/StreamValidation/End`
-  Arguments: `sessionId`, `target`.
-
-When a session is active, Unity writes:
-
-- `<sessionId>_Plugin`
-  Raw UDP datagrams as base64 lines.
-- `<sessionId>_PluginApplied`
-  Applied transform poses rounded to six decimal places.
-
-When `validationLogDirectory` is empty, the default directory is:
+If MOVIN support requests logs, they are written under:
 
 ```text
 Documents/MOVIN Studio/StreamValidation/Unity
