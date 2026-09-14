@@ -28,7 +28,7 @@ MonoBehaviour:
     linkText:
     url:
   - heading: Receiver Components
-    text: VMCReceiver listens for OSC/VMC messages. MOVIN.Core.MocapReceiver applies streamed root and bone poses to a character hierarchy. VMCReceiverMonitorUI shows packet, frame, drop, latency, and validation status at runtime.
+    text: MotionStreamReceiver listens for the MOVIN Studio motion stream over OSC/UDP. MOVIN.MocapReceiver applies streamed root and bone poses to a character hierarchy. MotionStreamMonitorUI shows packet, frame, drop, latency, and validation status at runtime.
     linkText:
     url:
   - heading: Validation Logs

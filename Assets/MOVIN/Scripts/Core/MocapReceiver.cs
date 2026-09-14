@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace MOVIN.Core
+namespace MOVIN
 {
-    public class MocapReceiver : VMCReceiver
+    public class MocapReceiver : MotionStreamReceiver
     {
         private const string BoneObjectSuffix = "BoneObject";
         private const float BoneScaleEpsilon = 1e-6f;
@@ -193,7 +193,7 @@ namespace MOVIN.Core
         /// Records every bone name seen on the wire and reports whether the set grew. Helper objects
         /// are never streamed, so this set is exactly the skeleton the sender drives.
         /// </summary>
-        private bool TrackStreamedBones(VMCFramePose frame)
+        private bool TrackStreamedBones(FramePose frame)
         {
             streamedBoneNames ??= new HashSet<string>();
 
@@ -322,7 +322,7 @@ namespace MOVIN.Core
             return boneTransform.localPosition.magnitude / bindLength;
         }
 
-        protected override void ApplyFramePose(VMCFramePose frame)
+        protected override void ApplyFramePose(FramePose frame)
         {
             if (frame.HasRoot)
             {
