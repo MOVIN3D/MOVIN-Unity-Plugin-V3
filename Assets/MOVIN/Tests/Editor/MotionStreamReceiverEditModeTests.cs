@@ -12,18 +12,18 @@ namespace MOVIN.Tests
     {
         private const BindingFlags PrivateStatic = BindingFlags.NonPublic | BindingFlags.Static;
         private const BindingFlags PrivateInstance = BindingFlags.NonPublic | BindingFlags.Instance;
-        private const string NewRootAddress = "/MOVIN/Unity/Root";
-        private const string NewBoneAddress = "/MOVIN/Unity/Bone";
-        private const string LegacyBoneAddress = "/VMC/Ext/Bone/Pos";
+        private const string RootAddress = "/MOVIN/Unity/Root";
+        private const string BoneAddress = "/MOVIN/Unity/Bone";
+        private const string VmcBoneAddress = "/VMC/Ext/Bone/Pos";
 
         [Test]
         public void StreamAddressesFollowTheTargetSegment()
         {
-            Assert.That(MotionStreamReceiver.RootAddressFor("Unity"), Is.EqualTo(NewRootAddress));
-            Assert.That(MotionStreamReceiver.BoneAddressFor("Unity"), Is.EqualTo(NewBoneAddress));
+            Assert.That(MotionStreamReceiver.RootAddressFor("Unity"), Is.EqualTo(RootAddress));
+            Assert.That(MotionStreamReceiver.BoneAddressFor("Unity"), Is.EqualTo(BoneAddress));
             Assert.That(MotionStreamReceiver.BoneAddressFor(" /WARUDO/ "), Is.EqualTo("/MOVIN/WARUDO/Bone"));
-            Assert.That(MotionStreamReceiver.RootAddressFor(""), Is.EqualTo(NewRootAddress));
-            Assert.That(MotionStreamReceiver.RootAddressFor(null), Is.EqualTo(NewRootAddress));
+            Assert.That(MotionStreamReceiver.RootAddressFor(""), Is.EqualTo(RootAddress));
+            Assert.That(MotionStreamReceiver.RootAddressFor(null), Is.EqualTo(RootAddress));
         }
 
         [Test]
@@ -40,7 +40,7 @@ namespace MOVIN.Tests
         }
 
         [Test]
-        public void TryReadFrameIndexLeavesLegacyMessageAtOffsetZero()
+        public void TryReadFrameIndexLeavesMessageWithoutFrameAtOffsetZero()
         {
             var msg = new OSCMessage { Args = new object[] { "Root" } };
             var args = new object[] { msg, 0, 0 };
@@ -53,16 +53,16 @@ namespace MOVIN.Tests
         }
 
         [Test]
-        public void NewBoneAddressIsBufferedByFrame()
+        public void BoneMessageIsBufferedByFrame()
         {
-            var gameObject = new GameObject("MotionStreamReceiver new address test");
+            var gameObject = new GameObject("MotionStreamReceiver bone test");
             gameObject.SetActive(false);
 
             try
             {
                 var receiver = gameObject.AddComponent<MotionStreamReceiver>();
 
-                Assert.That(TryBuffer(receiver, BoneMessage(NewBoneAddress, 0, "Hips")), Is.True);
+                Assert.That(TryBuffer(receiver, BoneMessage(BoneAddress, 0, "Hips")), Is.True);
                 InvokeInstance(receiver, "ForceCompleteCurrentFrame");
 
                 Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
@@ -76,21 +76,20 @@ namespace MOVIN.Tests
         }
 
         [Test]
-        public void LegacyBoneAddressWithFrameIndexIsStillBuffered()
+        public void VmcAddressIsNotTreatedAsMotion()
         {
-            var gameObject = new GameObject("MotionStreamReceiver legacy address test");
+            var gameObject = new GameObject("MotionStreamReceiver VMC address test");
             gameObject.SetActive(false);
 
             try
             {
                 var receiver = gameObject.AddComponent<MotionStreamReceiver>();
 
-                Assert.That(TryBuffer(receiver, BoneMessage(LegacyBoneAddress, 4, "Hips")), Is.True);
+                Assert.That(TryBuffer(receiver, BoneMessage(VmcBoneAddress, 4, "Hips")), Is.False);
+                Assert.That(TryBuffer(receiver, BoneMessage("/VMC/Ext/Root/Pos", 4, "Root")), Is.False);
                 InvokeInstance(receiver, "ForceCompleteCurrentFrame");
 
-                Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
-                Assert.That(GetFrameNumber(frame), Is.EqualTo(4));
-                Assert.That(GetBoneCount(frame), Is.EqualTo(1));
+                Assert.That(TryTakeFrame(receiver, out _), Is.False);
             }
             finally
             {
@@ -99,21 +98,21 @@ namespace MOVIN.Tests
         }
 
         [Test]
-        public void StandardVmcMessageWithoutFrameIndexIsConsumedButIgnored()
+        public void MotionMessageWithoutFrameIndexIsConsumedButIgnored()
         {
-            var gameObject = new GameObject("MotionStreamReceiver plain VMC test");
+            var gameObject = new GameObject("MotionStreamReceiver frameless test");
             gameObject.SetActive(false);
 
             try
             {
                 var receiver = gameObject.AddComponent<MotionStreamReceiver>();
-                var plainVmc = new OSCMessage
+                var frameless = new OSCMessage
                 {
-                    Address = LegacyBoneAddress,
+                    Address = BoneAddress,
                     Args = new object[] { "Hips", 0f, 0f, 0f, 0f, 0f, 0f, 1f },
                 };
 
-                Assert.That(TryBuffer(receiver, plainVmc), Is.True);
+                Assert.That(TryBuffer(receiver, frameless), Is.True);
                 InvokeInstance(receiver, "ForceCompleteCurrentFrame");
 
                 Assert.That(TryTakeFrame(receiver, out _), Is.False);
@@ -158,7 +157,7 @@ namespace MOVIN.Tests
                 var receiver = gameObject.AddComponent<MotionStreamReceiver>();
                 var root = new OSCMessage
                 {
-                    Address = NewRootAddress,
+                    Address = RootAddress,
                     Args = new object[] { 3, "Root", 0f, 1f, 0f, 0f, 0f, 0f, 1f, 2f, 2f, 2f },
                 };
 
@@ -190,8 +189,7 @@ namespace MOVIN.Tests
                 receiver.streamTarget = "WARUDO";
 
                 Assert.That(TryBuffer(receiver, BoneMessage("/MOVIN/WARUDO/Bone", 0, "Hips")), Is.True);
-                Assert.That(TryBuffer(receiver, BoneMessage(NewBoneAddress, 0, "Hips")), Is.False);
-                Assert.That(TryBuffer(receiver, BoneMessage(LegacyBoneAddress, 0, "Hips")), Is.True);
+                Assert.That(TryBuffer(receiver, BoneMessage(BoneAddress, 0, "Hips")), Is.False);
             }
             finally
             {
@@ -247,7 +245,7 @@ namespace MOVIN.Tests
                 Assert.That(diagnostics.ValidationSessionId, Is.EqualTo(sessionId));
 
                 var packet = new byte[] { 1, 2, 3, 4 };
-                var motion = BoneMessage(NewBoneAddress, -1, "Hips");
+                var motion = BoneMessage(BoneAddress, -1, "Hips");
                 motion.PacketData = packet;
                 motion.PacketLength = packet.Length;
                 motion.PacketSequence = 1;

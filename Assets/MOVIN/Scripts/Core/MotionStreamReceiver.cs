@@ -13,9 +13,9 @@ namespace MOVIN
     /// UDP receiver for the MOVIN Studio motion stream (OSC 1.0 encoded, no external packages).
     /// - Listens on UDP (default 11235) and parses OSC messages and bundles.
     /// - Consumes /MOVIN/&lt;target&gt;/Root and /MOVIN/&lt;target&gt;/Bone, where the target segment
-    ///   defaults to "Unity", plus the legacy /VMC/Ext/Root/Pos and /VMC/Ext/Bone/Pos addresses
-    ///   that older MOVIN Studio versions send. Every motion message starts with an int frame
-    ///   index; standard VMC messages carry none and are ignored, so this is not a VMC receiver.
+    ///   defaults to "Unity". Every motion message starts with an int frame index. Earlier releases
+    ///   borrowed VMC address names; no /VMC address is handled any more and this is not a VMC
+    ///   receiver.
     /// - Thread-safe: the network thread buffers motion frames by frame index and the Unity main
     ///   thread applies one completed frame per Update().
     /// </summary>

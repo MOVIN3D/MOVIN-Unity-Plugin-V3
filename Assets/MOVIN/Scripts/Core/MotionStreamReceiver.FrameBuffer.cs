@@ -157,9 +157,8 @@ namespace MOVIN
 
         /// <summary>
         /// Reads the leading frame index and bone name shared by both motion messages and checks
-        /// that the pose arguments follow. A message without a frame index is a standard VMC
-        /// message, which this receiver does not handle, so it is dropped rather than applied
-        /// out of frame order.
+        /// that the pose arguments follow. A message without a frame index cannot be placed in a
+        /// frame, so it is dropped rather than applied out of order.
         /// </summary>
         private bool TryReadMotionHeader(OSCMessage msg, out int wireFrame, out int offset, out string name)
         {

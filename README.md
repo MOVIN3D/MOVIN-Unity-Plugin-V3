@@ -16,6 +16,7 @@ MOVIN Unity Plugin V3 is a Unity sample project and import package for receiving
 - Unity `6000.4.10f1`
 - Universal Render Pipeline (URP) `17.4.0`
 - Input System `1.19.0`
+- A MOVIN Studio build that streams on the `/MOVIN/<target>/...` addresses. Older builds that still stream on `/VMC/...` are not supported by this plugin version.
 - Git LFS when cloning this repository, because the Unity package is stored as an LFS object
 
 ## Installation
@@ -106,7 +107,7 @@ The default target is `Unity`, so a stock receiver listens on `/MOVIN/Unity/Root
 - Wrist and finger bones are omitted when hand streaming is off in MOVIN Studio.
 - `/MOVIN/StreamValidation/Begin` and `/MOVIN/StreamValidation/End` are control messages used by the diagnostic described under Stream Validation.
 
-**The stream is not VMC.** Older MOVIN Studio versions sent the same payload on `/VMC/Ext/Root/Pos` and `/VMC/Ext/Bone/Pos`. The receiver still accepts those two legacy addresses when the message starts with a frame index, so an older MOVIN Studio keeps working, and this fallback will be removed in a later release. Standard VMC messages, which carry no frame index, are ignored, and no other VMC address is handled. Do not point a VMC application at this receiver or MOVIN Studio at a VMC receiver.
+**The stream is not VMC.** Earlier releases borrowed the `/VMC/Ext/Root/Pos` and `/VMC/Ext/Bone/Pos` address names for the same payload. This plugin handles no `/VMC/...` address at all, so a MOVIN Studio build that still streams on them has to be updated before it can drive this receiver. Do not point a VMC application at this receiver or MOVIN Studio at a VMC receiver.
 
 ## Frame Buffering and Drops
 
@@ -140,7 +141,7 @@ Every script now sits in a namespace, the receiver family no longer carries `VMC
 | `VMCReceiverMonitorUI` | `MOVIN.MotionStreamMonitorUI` |
 | `VMCExampleLogger` | `MOVIN.MotionStreamExampleLogger` |
 | `OSCMessage`, `OSCParser` | `MOVIN.OSC.OSCMessage`, `MOVIN.OSC.OSCParser` |
-| `/VMC/Ext/Root/Pos`, `/VMC/Ext/Bone/Pos` | `/MOVIN/Unity/Root`, `/MOVIN/Unity/Bone` (legacy addresses still accepted for now) |
+| `/VMC/Ext/Root/Pos`, `/VMC/Ext/Bone/Pos` | `/MOVIN/Unity/Root`, `/MOVIN/Unity/Bone` (the `/VMC` addresses are no longer accepted) |
 
 Removed: the VMC-only events `OnOk`, `OnTime`, `OnBlendShapeValue`, `OnBlendShapeApply`, `OnCamera`, `OnHmdPos`, `OnControllerPos`, `OnTrackerPos`, the `BlendshapeValues` dictionary, `OSCArgReader`, the unused `passthroughUnityCoordinates` option, and the root pose offset argument. `OnRootPose` now has the signature `(string name, Vector3 position, Quaternion rotation, Vector3? scale)`.
 
@@ -151,7 +152,7 @@ The default port, the serialized receiver fields, and the frame buffering behavi
 - No packets are shown in the monitor:
   Check the sender destination IP, UDP port `11235`, firewall rules, and whether another app is already using the same port.
 - Packets arrive but the character does not move:
-  Confirm that `MocapReceiver` is on the character root, that `Stream Target` matches the target MOVIN Studio streams to, that the streamed bone names match the Unity hierarchy, and that `Root Bone Name` is set only when needed. Enable `Verbose Logging` to see every incoming address in the Console.
+  Confirm that `MocapReceiver` is on the character root, that `Stream Target` matches the target MOVIN Studio streams to, that the streamed bone names match the Unity hierarchy, and that `Root Bone Name` is set only when needed. Enable `Verbose Logging` to see every incoming address in the Console. Addresses starting with `/VMC/` mean MOVIN Studio is older than this plugin and needs updating.
 - Only part of the character moves, such as the upper body:
   The mapped bones stop short of the rest of the skeleton. `MocapReceiver` logs a warning naming every streamed bone it could not match, so check the Console and then set `Root Bone Name` to the top of your skeleton, for example `RootBone` or `Hips`.
 - Motion is delayed or frames are dropped:

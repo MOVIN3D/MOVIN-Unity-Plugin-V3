@@ -7,8 +7,6 @@ namespace MOVIN
     {
         public const string DefaultStreamTarget = "Unity";
         private const string AddressNamespace = "/MOVIN";
-        private const string LegacyRootAddress = "/VMC/Ext/Root/Pos";
-        private const string LegacyBoneAddress = "/VMC/Ext/Bone/Pos";
 
         /// <summary>Address MOVIN Studio sends the root bone pose on for <paramref name="target"/>.</summary>
         public static string RootAddressFor(string target) => $"{AddressNamespace}/{NormalizeTarget(target)}/Root";
@@ -36,9 +34,9 @@ namespace MOVIN
                 ResolveStreamAddresses();
         }
 
-        private bool IsRootAddress(string address) => address == _rootAddress || address == LegacyRootAddress;
+        private bool IsRootAddress(string address) => address == _rootAddress;
 
-        private bool IsBoneAddress(string address) => address == _boneAddress || address == LegacyBoneAddress;
+        private bool IsBoneAddress(string address) => address == _boneAddress;
 
         private bool IsMotionAddress(string address) => IsRootAddress(address) || IsBoneAddress(address);
 
