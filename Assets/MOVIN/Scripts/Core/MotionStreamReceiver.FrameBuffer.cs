@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using MOVIN.OSC;
@@ -30,16 +30,14 @@ namespace MOVIN
             public Vector3 RootPosition { get; private set; }
             public Quaternion RootRotation { get; private set; }
             public Vector3? RootScale { get; private set; }
-            public Vector3? RootOffset { get; private set; }
             public List<BonePose> Bones => _bones;
 
-            public void SetRoot(string name, Vector3 position, Quaternion rotation, Vector3? scale, Vector3? offset)
+            public void SetRoot(string name, Vector3 position, Quaternion rotation, Vector3? scale)
             {
                 RootName = name;
                 RootPosition = position;
                 RootRotation = rotation;
                 RootScale = scale;
-                RootOffset = offset;
                 HasRoot = true;
                 LastReceiveUtcTicks = DateTime.UtcNow.Ticks;
             }
@@ -107,76 +105,96 @@ namespace MOVIN
             }
         }
 
+        /// <summary>
+        /// Receive-thread entry point. Returns true when the message is a motion message, which is
+        /// consumed here whether or not it could be buffered; everything else goes to the main thread.
+        /// </summary>
         private bool TryBufferMotionMessage(OSCMessage msg)
         {
-            if (msg.Address == "/VMC/Ext/Root/Pos")
-                return TryBufferRootPose(msg);
+            EnsureStreamAddresses();
 
-            if (msg.Address == "/VMC/Ext/Bone/Pos")
-                return TryBufferBonePose(msg);
+            if (IsRootAddress(msg.Address))
+            {
+                BufferRootPoseMessage(msg);
+                return true;
+            }
+
+            if (IsBoneAddress(msg.Address))
+            {
+                BufferBonePoseMessage(msg);
+                return true;
+            }
 
             return false;
         }
 
-        private bool TryBufferRootPose(OSCMessage msg)
+        // (int frame, string name, pos xyz, rot xyzw[, scale xyz])
+        private void BufferRootPoseMessage(OSCMessage msg)
         {
-            var hasFrame = TryReadFrameIndex(msg, out var wireFrame, out var offset);
-            if (msg.Args.Length < offset + 8 || msg.Args[offset] is not string rootName)
-                return true;
+            if (!TryReadMotionHeader(msg, out var wireFrame, out var offset, out var rootName))
+                return;
 
-            var position = new Vector3((float)msg.Args[offset + 1], (float)msg.Args[offset + 2], (float)msg.Args[offset + 3]);
-            var rotation = new Quaternion((float)msg.Args[offset + 4], (float)msg.Args[offset + 5], (float)msg.Args[offset + 6], (float)msg.Args[offset + 7]);
-            Vector3? scale = null, rootOffset = null;
-            if (msg.Args.Length >= offset + 11)
-                scale = new Vector3((float)msg.Args[offset + 8], (float)msg.Args[offset + 9], (float)msg.Args[offset + 10]);
-            if (msg.Args.Length >= offset + 14)
-                rootOffset = new Vector3((float)msg.Args[offset + 11], (float)msg.Args[offset + 12], (float)msg.Args[offset + 13]);
+            var position = ReadVector3(msg, offset + 1);
+            var rotation = ReadQuaternion(msg, offset + 4);
+            Vector3? scale = msg.Args.Length >= offset + 11 ? ReadVector3(msg, offset + 8) : null;
 
-            if (!passthroughUnityCoordinates)
-            {
-                position = ConvertCoords(position);
-                rotation = ConvertRot(rotation);
-            }
-
-            if (!hasFrame)
-                return false;
-
-            MarkPoseMessage(rootName, true, wireFrame);
-            BufferRootPose(wireFrame, rootName, position, rotation, scale, rootOffset);
-
-            return true;
+            MarkPoseMessage(rootName, wireFrame);
+            BufferRootPose(wireFrame, rootName, position, rotation, scale);
         }
 
-        private bool TryBufferBonePose(OSCMessage msg)
+        // (int frame, string name, pos xyz, rot xyzw)
+        private void BufferBonePoseMessage(OSCMessage msg)
         {
-            var hasFrame = TryReadFrameIndex(msg, out var wireFrame, out var offset);
-            if (msg.Args.Length < offset + 8 || msg.Args[offset] is not string boneName)
-                return true;
+            if (!TryReadMotionHeader(msg, out var wireFrame, out var offset, out var boneName))
+                return;
 
-            var position = new Vector3((float)msg.Args[offset + 1], (float)msg.Args[offset + 2], (float)msg.Args[offset + 3]);
-            var rotation = new Quaternion((float)msg.Args[offset + 4], (float)msg.Args[offset + 5], (float)msg.Args[offset + 6], (float)msg.Args[offset + 7]);
+            var position = ReadVector3(msg, offset + 1);
+            var rotation = ReadQuaternion(msg, offset + 4);
 
-            if (!passthroughUnityCoordinates)
-            {
-                position = ConvertCoords(position);
-                rotation = ConvertRot(rotation);
-            }
-
-            if (!hasFrame)
-                return false;
-
-            MarkPoseMessage(boneName, true, wireFrame);
+            MarkPoseMessage(boneName, wireFrame);
             BufferBonePose(wireFrame, boneName, position, rotation);
+        }
 
+        /// <summary>
+        /// Reads the leading frame index and bone name shared by both motion messages and checks
+        /// that the pose arguments follow. A message without a frame index is a standard VMC
+        /// message, which this receiver does not handle, so it is dropped rather than applied
+        /// out of frame order.
+        /// </summary>
+        private bool TryReadMotionHeader(OSCMessage msg, out int wireFrame, out int offset, out string name)
+        {
+            const int poseArgCount = 8; // name + pos xyz + rot xyzw
+
+            name = null;
+            if (!TryReadFrameIndex(msg, out wireFrame, out offset)
+                || msg.Args.Length < offset + poseArgCount
+                || msg.Args[offset] is not string streamedName)
+            {
+                if (verboseLogging)
+                    Debug.Log($"Ignored motion message without a frame index or pose arguments: {msg.Address} {msg.Types}");
+                return false;
+            }
+
+            name = streamedName;
             return true;
         }
 
-        private void BufferRootPose(int wireFrame, string rootName, Vector3 position, Quaternion rotation, Vector3? scale, Vector3? rootOffset)
+        private static Vector3 ReadVector3(OSCMessage msg, int index)
+        {
+            return new Vector3((float)msg.Args[index], (float)msg.Args[index + 1], (float)msg.Args[index + 2]);
+        }
+
+        private static Quaternion ReadQuaternion(OSCMessage msg, int index)
+        {
+            return new Quaternion((float)msg.Args[index], (float)msg.Args[index + 1], (float)msg.Args[index + 2], (float)msg.Args[index + 3]);
+        }
+
+        private void BufferRootPose(int wireFrame, string rootName, Vector3 position, Quaternion rotation, Vector3? scale)
         {
             lock (_frameLock)
             {
                 var frame = GetFrameForBufferLocked(wireFrame);
-                frame?.SetRoot(rootName, position, rotation, scale, rootOffset);
+                frame?.SetRoot(rootName, position, rotation, scale);
             }
         }
 
@@ -318,7 +336,7 @@ namespace MOVIN
 
         private void ApplyBufferedFrame(FramePose frame)
         {
-            var privatePoseScope = EnterPrivatePoseFrame(true, frame.WireFrame);
+            var privatePoseScope = EnterPrivatePoseFrame(frame.WireFrame);
             var previousDispatchFrame = _currentDispatchFrame;
             _currentDispatchFrame = frame.Frame;
             try
@@ -336,7 +354,7 @@ namespace MOVIN
         protected virtual void ApplyFramePose(FramePose frame)
         {
             if (frame.HasRoot)
-                OnRootPose?.Invoke(frame.RootName, frame.RootPosition, frame.RootRotation, frame.RootScale, frame.RootOffset);
+                OnRootPose?.Invoke(frame.RootName, frame.RootPosition, frame.RootRotation, frame.RootScale);
 
             foreach (var bone in frame.Bones)
             {

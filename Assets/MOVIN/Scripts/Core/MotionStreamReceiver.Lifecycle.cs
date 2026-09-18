@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -26,6 +26,7 @@ namespace MOVIN
             try
             {
                 ApplyRunInBackgroundOverride();
+                ResolveStreamAddresses();
                 _remoteAny = new IPEndPoint(IPAddress.Any, 0);
                 var local = string.IsNullOrWhiteSpace(bindAddress) ? IPAddress.Any : IPAddress.Parse(bindAddress);
                 _udp = new UdpClient(new IPEndPoint(local, listenPort));
@@ -34,7 +35,7 @@ namespace MOVIN
                 _running = true;
                 _thread = new Thread(ReceiveLoop) { IsBackground = true, Name = "MotionStreamReceiver" };
                 _thread.Start();
-                Debug.Log($"MotionStreamReceiver listening on {local}:{listenPort}");
+                Debug.Log($"MotionStreamReceiver listening on {local}:{listenPort} for {_rootAddress} and {_boneAddress}");
             }
             catch (Exception ex)
             {
@@ -132,26 +133,26 @@ namespace MOVIN
                         msg.PacketLength = data.Length;
                         msg.PacketSequence = packetSequence;
                         MarkMessageReceived(msg);
-                        if (TryHandlePrivateReceiveThreadControlMessage(msg))
+                        try
                         {
-                            MarkMessageDispatched();
-                        }
-                        else if (TryBufferMotionMessage(msg))
-                        {
-                            try
+                            if (TryHandlePrivateReceiveThreadControlMessage(msg))
+                            {
+                                MarkMessageDispatched();
+                            }
+                            else if (TryBufferMotionMessage(msg))
                             {
                                 RecordPrivateRawPacket(msg);
                                 MarkMessageDispatched();
                             }
-                            catch (Exception ex)
+                            else
                             {
-                                Interlocked.Increment(ref _processingErrors);
-                                Debug.LogWarning($"Motion buffer error for {msg.Address}: {ex.Message}");
+                                _queue.Enqueue(msg);
                             }
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            _queue.Enqueue(msg);
+                            Interlocked.Increment(ref _processingErrors);
+                            Debug.LogWarning($"Motion buffer error for {msg.Address}: {ex.Message}");
                         }
                     });
                 }
@@ -176,8 +177,7 @@ namespace MOVIN
             {
                 try
                 {
-                    RecordPrivateRawPacket(msg);
-                    DispatchVMC(msg);
+                    DispatchMainThreadMessage(msg);
                     MarkMessageDispatched();
                 }
                 catch (Exception ex)

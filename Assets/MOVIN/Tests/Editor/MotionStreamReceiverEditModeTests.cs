@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections;
 using System.IO;
 using System.Reflection;
 using NUnit.Framework;
@@ -11,6 +12,19 @@ namespace MOVIN.Tests
     {
         private const BindingFlags PrivateStatic = BindingFlags.NonPublic | BindingFlags.Static;
         private const BindingFlags PrivateInstance = BindingFlags.NonPublic | BindingFlags.Instance;
+        private const string NewRootAddress = "/MOVIN/Unity/Root";
+        private const string NewBoneAddress = "/MOVIN/Unity/Bone";
+        private const string LegacyBoneAddress = "/VMC/Ext/Bone/Pos";
+
+        [Test]
+        public void StreamAddressesFollowTheTargetSegment()
+        {
+            Assert.That(MotionStreamReceiver.RootAddressFor("Unity"), Is.EqualTo(NewRootAddress));
+            Assert.That(MotionStreamReceiver.BoneAddressFor("Unity"), Is.EqualTo(NewBoneAddress));
+            Assert.That(MotionStreamReceiver.BoneAddressFor(" /WARUDO/ "), Is.EqualTo("/MOVIN/WARUDO/Bone"));
+            Assert.That(MotionStreamReceiver.RootAddressFor(""), Is.EqualTo(NewRootAddress));
+            Assert.That(MotionStreamReceiver.RootAddressFor(null), Is.EqualTo(NewRootAddress));
+        }
 
         [Test]
         public void TryReadFrameIndexReadsIntegerPrefix()
@@ -36,6 +50,153 @@ namespace MOVIN.Tests
             Assert.That(result, Is.False);
             Assert.That(args[1], Is.EqualTo(0));
             Assert.That(args[2], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void NewBoneAddressIsBufferedByFrame()
+        {
+            var gameObject = new GameObject("MotionStreamReceiver new address test");
+            gameObject.SetActive(false);
+
+            try
+            {
+                var receiver = gameObject.AddComponent<MotionStreamReceiver>();
+
+                Assert.That(TryBuffer(receiver, BoneMessage(NewBoneAddress, 0, "Hips")), Is.True);
+                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+
+                Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
+                Assert.That(GetFrameNumber(frame), Is.EqualTo(0));
+                Assert.That(GetBoneCount(frame), Is.EqualTo(1));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [Test]
+        public void LegacyBoneAddressWithFrameIndexIsStillBuffered()
+        {
+            var gameObject = new GameObject("MotionStreamReceiver legacy address test");
+            gameObject.SetActive(false);
+
+            try
+            {
+                var receiver = gameObject.AddComponent<MotionStreamReceiver>();
+
+                Assert.That(TryBuffer(receiver, BoneMessage(LegacyBoneAddress, 4, "Hips")), Is.True);
+                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+
+                Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
+                Assert.That(GetFrameNumber(frame), Is.EqualTo(4));
+                Assert.That(GetBoneCount(frame), Is.EqualTo(1));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [Test]
+        public void StandardVmcMessageWithoutFrameIndexIsConsumedButIgnored()
+        {
+            var gameObject = new GameObject("MotionStreamReceiver plain VMC test");
+            gameObject.SetActive(false);
+
+            try
+            {
+                var receiver = gameObject.AddComponent<MotionStreamReceiver>();
+                var plainVmc = new OSCMessage
+                {
+                    Address = LegacyBoneAddress,
+                    Args = new object[] { "Hips", 0f, 0f, 0f, 0f, 0f, 0f, 1f },
+                };
+
+                Assert.That(TryBuffer(receiver, plainVmc), Is.True);
+                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+
+                Assert.That(TryTakeFrame(receiver, out _), Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [Test]
+        public void NonMotionAddressIsLeftForTheMainThread()
+        {
+            var gameObject = new GameObject("MotionStreamReceiver non-motion test");
+            gameObject.SetActive(false);
+
+            try
+            {
+                var receiver = gameObject.AddComponent<MotionStreamReceiver>();
+                var blendShape = new OSCMessage
+                {
+                    Address = "/VMC/Ext/Blend/Val",
+                    Args = new object[] { "Joy", 1f },
+                };
+
+                Assert.That(TryBuffer(receiver, blendShape), Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [Test]
+        public void RootMessageBuffersOptionalScale()
+        {
+            var gameObject = new GameObject("MotionStreamReceiver root test");
+            gameObject.SetActive(false);
+
+            try
+            {
+                var receiver = gameObject.AddComponent<MotionStreamReceiver>();
+                var root = new OSCMessage
+                {
+                    Address = NewRootAddress,
+                    Args = new object[] { 3, "Root", 0f, 1f, 0f, 0f, 0f, 0f, 1f, 2f, 2f, 2f },
+                };
+
+                Assert.That(TryBuffer(receiver, root), Is.True);
+                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+
+                Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
+                Assert.That(GetFrameNumber(frame), Is.EqualTo(3));
+                Assert.That(GetFrameProperty(frame, "HasRoot"), Is.True);
+                Assert.That(GetFrameProperty(frame, "RootName"), Is.EqualTo("Root"));
+                Assert.That(GetFrameProperty(frame, "RootPosition"), Is.EqualTo(new Vector3(0f, 1f, 0f)));
+                Assert.That(GetFrameProperty(frame, "RootScale"), Is.EqualTo(new Vector3(2f, 2f, 2f)));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [Test]
+        public void StreamTargetSelectsTheAcceptedAddresses()
+        {
+            var gameObject = new GameObject("MotionStreamReceiver target test");
+            gameObject.SetActive(false);
+
+            try
+            {
+                var receiver = gameObject.AddComponent<MotionStreamReceiver>();
+                receiver.streamTarget = "WARUDO";
+
+                Assert.That(TryBuffer(receiver, BoneMessage("/MOVIN/WARUDO/Bone", 0, "Hips")), Is.True);
+                Assert.That(TryBuffer(receiver, BoneMessage(NewBoneAddress, 0, "Hips")), Is.False);
+                Assert.That(TryBuffer(receiver, BoneMessage(LegacyBoneAddress, 0, "Hips")), Is.True);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+            }
         }
 
         [Test]
@@ -86,14 +247,10 @@ namespace MOVIN.Tests
                 Assert.That(diagnostics.ValidationSessionId, Is.EqualTo(sessionId));
 
                 var packet = new byte[] { 1, 2, 3, 4 };
-                var motion = new OSCMessage
-                {
-                    Address = "/VMC/Ext/Bone/Pos",
-                    Args = new object[] { -1, "Hips", 0f, 0f, 0f, 0f, 0f, 0f, 1f },
-                    PacketData = packet,
-                    PacketLength = packet.Length,
-                    PacketSequence = 1,
-                };
+                var motion = BoneMessage(NewBoneAddress, -1, "Hips");
+                motion.PacketData = packet;
+                motion.PacketLength = packet.Length;
+                motion.PacketSequence = 1;
                 InvokeInstance(receiver, "RecordPrivateRawPacket", motion);
                 InvokeInstance(receiver, "OnPrivateReceiverStopping");
 
@@ -269,6 +426,20 @@ namespace MOVIN.Tests
             }
         }
 
+        private static OSCMessage BoneMessage(string address, int frame, string boneName)
+        {
+            return new OSCMessage
+            {
+                Address = address,
+                Args = new object[] { frame, boneName, 0f, 0f, 0f, 0f, 0f, 0f, 1f },
+            };
+        }
+
+        private static bool TryBuffer(MotionStreamReceiver receiver, OSCMessage msg)
+        {
+            return (bool)InvokeInstance(receiver, "TryBufferMotionMessage", msg);
+        }
+
         private static object InvokeStatic(string methodName, params object[] args)
         {
             return typeof(MotionStreamReceiver)
@@ -293,7 +464,17 @@ namespace MOVIN.Tests
 
         private static int GetFrameNumber(object frame)
         {
-            return (int)frame.GetType().GetProperty("Frame").GetValue(frame);
+            return (int)GetFrameProperty(frame, "Frame");
+        }
+
+        private static int GetBoneCount(object frame)
+        {
+            return ((ICollection)GetFrameProperty(frame, "Bones")).Count;
+        }
+
+        private static object GetFrameProperty(object frame, string propertyName)
+        {
+            return frame.GetType().GetProperty(propertyName).GetValue(frame);
         }
 
         private static string CreateTempDirectory()

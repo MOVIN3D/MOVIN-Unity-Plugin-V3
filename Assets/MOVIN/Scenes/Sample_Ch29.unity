@@ -509,9 +509,7 @@ MonoBehaviour:
   listenPort: 11235
   bindAddress:
   verboseLogging: 0
-  passthroughUnityCoordinates: 1
   rootBoneName:
-  boneClass:
 --- !u!114 &1524710297
 MonoBehaviour:
   m_ObjectHideFlags: 0

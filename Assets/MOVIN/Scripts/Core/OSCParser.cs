@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -186,20 +186,6 @@ namespace MOVIN.OSC
                 idx += 4;
                 return true;
             }
-        }
-    }
-
-    public static class OSCArgReader
-    {
-        public static int[] Ints(OSCMessage msg)
-        {
-            var list = new List<int>(msg.Args.Length);
-            foreach (var a in msg.Args)
-            {
-                if (a is int i) list.Add(i);
-                else if (a is float f) list.Add((int)f);
-            }
-            return list.ToArray();
         }
     }
 }

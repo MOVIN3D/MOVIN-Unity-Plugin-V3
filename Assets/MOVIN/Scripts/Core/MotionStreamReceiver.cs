@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
@@ -12,14 +12,12 @@ namespace MOVIN
     /// <summary>
     /// UDP receiver for the MOVIN Studio motion stream (OSC 1.0 encoded, no external packages).
     /// - Listens on UDP (default 11235) and parses OSC messages and bundles.
-    /// - The stream borrows VMC address names such as /VMC/Ext/Root/Pos and /VMC/Ext/Bone/Pos, but
-    ///   MOVIN prepends an int frame index, streams the model's own bone names, and applies bone
-    ///   positions as well as rotations, so it is not interoperable with standard VMC senders or
-    ///   receivers. Messages without a frame index are still parsed and dispatched immediately.
-    /// - Thread-safe: the network thread buffers motion frames and enqueues other messages; the
-    ///   Unity main thread applies them in Update().
-    ///
-    /// Address naming reference: https://protocol.vmc.info/english.html
+    /// - Consumes /MOVIN/&lt;target&gt;/Root and /MOVIN/&lt;target&gt;/Bone, where the target segment
+    ///   defaults to "Unity", plus the legacy /VMC/Ext/Root/Pos and /VMC/Ext/Bone/Pos addresses
+    ///   that older MOVIN Studio versions send. Every motion message starts with an int frame
+    ///   index; standard VMC messages carry none and are ignored, so this is not a VMC receiver.
+    /// - Thread-safe: the network thread buffers motion frames by frame index and the Unity main
+    ///   thread applies one completed frame per Update().
     /// </summary>
     public partial class MotionStreamReceiver : MonoBehaviour
     {
@@ -32,6 +30,9 @@ namespace MOVIN
         [Tooltip("Optional: bind to a specific local IP (blank for Any).")]
         public string bindAddress = "";
 
+        [Tooltip("Target segment of the stream addresses, /MOVIN/<target>/Root and /MOVIN/<target>/Bone. Must match the target selected in MOVIN Studio. Applied when the receiver starts.")]
+        public string streamTarget = DefaultStreamTarget;
+
         [Tooltip("Log incoming OSC addresses for debugging.")]
         public bool verboseLogging = false;
 
@@ -43,14 +44,12 @@ namespace MOVIN
         [Min(1)]
         public int maxBufferedFramesBeforeDrop = 6;
 
-        [Header("Coordinate Conversion")]
-        [Tooltip("If your avatar/world uses a right-handed coordinate system, you may need to adapt here. The MOVIN stream and Unity are both left-handed (Y up), so typically no change.")]
-        public bool passthroughUnityCoordinates = true;
-
         private Thread _thread;
         private UdpClient _udp;
         private IPEndPoint _remoteAny;
         private volatile bool _running;
+        private string _rootAddress;
+        private string _boneAddress;
         private readonly object _frameLock = new object();
         private readonly Dictionary<int, FramePose> _frameBuffer = new Dictionary<int, FramePose>();
         private readonly List<int> _staleFrameScratch = new List<int>();
@@ -88,24 +87,15 @@ namespace MOVIN
         private double _lastPlaybackLatencyMs = -1.0;
         private int _currentDispatchFrame = int.MinValue;
 
-        // Message queue processed on main thread
+        // Messages the receive thread did not consume, processed on the main thread.
         private readonly ConcurrentQueue<OSCMessage> _queue = new ConcurrentQueue<OSCMessage>();
 
-        // --- Events you can subscribe to ---
-        public event Action<int, int, int, int> OnOk; // loaded, calibState, calibMode, trackingStatus (some are optional per version)
-        public event Action<float> OnTime;
-        public event Action<string, Vector3, Quaternion, Vector3?, Vector3?> OnRootPose; // name, pos, rot, (opt)scale, (opt)offset
-        public event Action<string, Vector3, Quaternion> OnBonePose; // bone name as streamed by MOVIN Studio
-        public event Action<string, float> OnBlendShapeValue; // name, value
-        public event Action OnBlendShapeApply;
-        public event Action<string, Vector3, Quaternion, float> OnCamera; // name, pos, rot, fov
-        public event Action<string, Vector3, Quaternion> OnHmdPos;
-        public event Action<string, Vector3, Quaternion> OnControllerPos;
-        public event Action<string, Vector3, Quaternion> OnTrackerPos;
+        // --- Events you can subscribe to. Raised on the main thread when a buffered frame is applied. ---
+        public event Action<string, Vector3, Quaternion, Vector3?> OnRootPose; // name, local pos, local rot, (opt) local scale
+        public event Action<string, Vector3, Quaternion> OnBonePose; // bone name as streamed by MOVIN Studio, local pos, local rot
 
-        // Optional: public getters for last-known states
+        // Last-known bone poses keyed by streamed bone name.
         public readonly Dictionary<string, (Vector3 pos, Quaternion rot)> BonePoses = new();
-        public readonly Dictionary<string, float> BlendshapeValues = new();
 
         private readonly struct PrivatePoseScope
         {

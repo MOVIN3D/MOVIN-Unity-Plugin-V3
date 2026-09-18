@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using UnityEngine;
 using MOVIN.OSC;
@@ -112,13 +112,11 @@ namespace MOVIN
             Interlocked.Exchange(ref _lastDispatchUtcTicks, DateTime.UtcNow.Ticks);
         }
 
-        private void MarkPoseMessage(string poseName, bool hasFrame, int wireFrame)
+        private void MarkPoseMessage(string poseName, int wireFrame)
         {
             lock (_monitorLock)
             {
                 _lastPoseName = poseName;
-                if (!hasFrame)
-                    return;
 
                 var frame = WireFrameToFrame(wireFrame);
                 _lastWireFrame = wireFrame;

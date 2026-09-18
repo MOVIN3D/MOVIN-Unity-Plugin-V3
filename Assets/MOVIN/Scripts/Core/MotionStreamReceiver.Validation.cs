@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -16,7 +16,6 @@ namespace MOVIN
         private const string ValidationPoseHeader = "MOVIN_STREAM_VALIDATION_POSE_V1";
         private const string ValidationPacketFormat = "base64_udp_datagram";
         private const string ValidationFloatFormat = "round6";
-        private const string ValidationTargetUnity = "Unity";
         private const string ValidationAppSuffix = "_App";
         private const int ValidationFlushLineInterval = 512;
         private const long ValidationFlushIntervalTicks = 5000000L;
@@ -45,11 +44,14 @@ namespace MOVIN
         private long _lastValidationPacketWritten = -1;
         private int _validationPacketIndex;
         private int _currentValidationWireFrame = int.MinValue;
-        private string _validationTarget = ValidationTargetUnity;
+        private string _validationTarget = "";
         private int _validationLinesSinceFlush;
         private long _lastValidationFlushUtcTicks;
         private readonly HashSet<string> _endedValidationSessions = new HashSet<string>();
         private string _validationLogPath = "";
+
+        // Validation sessions belong to the same target as the motion stream.
+        private string ValidationTarget => NormalizeTarget(streamTarget);
 
         public struct PrivateDiagnosticsSnapshot
         {
@@ -73,23 +75,9 @@ namespace MOVIN
             }
         }
 
-        private bool TryHandlePrivateControlMessage(OSCMessage msg)
-        {
-            switch (msg.Address)
-            {
-                case ValidationBeginAddress:
-                    BeginValidationSession(msg);
-                    return true;
-
-                case ValidationEndAddress:
-                    EndValidationSession(msg);
-                    return true;
-
-                default:
-                    return false;
-            }
-        }
-
+        // Begin is handled on the receive thread so the log is open before the first motion
+        // packet of the session is recorded. End is left to the main thread because it drains
+        // buffered frames onto the character.
         private bool TryHandlePrivateReceiveThreadControlMessage(OSCMessage msg)
         {
             if (msg.Address != ValidationBeginAddress)
@@ -109,10 +97,10 @@ namespace MOVIN
             CloseValidationLog();
         }
 
-        private PrivatePoseScope EnterPrivatePoseFrame(bool hasFrame, int wireFrame)
+        private PrivatePoseScope EnterPrivatePoseFrame(int wireFrame)
         {
             var scope = new PrivatePoseScope(_currentValidationWireFrame);
-            _currentValidationWireFrame = hasFrame ? wireFrame : int.MinValue;
+            _currentValidationWireFrame = wireFrame;
             return scope;
         }
 
@@ -148,12 +136,10 @@ namespace MOVIN
             }
         }
 
-        private static bool IsValidationMotionMessage(OSCMessage msg)
+        private bool IsValidationMotionMessage(OSCMessage msg)
         {
-            var isPose =
-                msg.Address == "/VMC/Ext/Root/Pos"
-                || msg.Address == "/VMC/Ext/Bone/Pos";
-            return isPose
+            EnsureStreamAddresses();
+            return IsMotionAddress(msg.Address)
                 && TryReadFrameIndex(msg, out var frameIdx, out _)
                 && frameIdx < 0;
         }
@@ -169,9 +155,9 @@ namespace MOVIN
                 return;
             }
 
-            if (target != ValidationTargetUnity)
+            if (target != ValidationTarget)
             {
-                Debug.LogWarning($"Unsupported stream validation target for Unity plugin: {target}");
+                Debug.LogWarning($"Unsupported stream validation target '{target}' for a receiver streaming to '{ValidationTarget}'.");
                 return;
             }
 
@@ -194,13 +180,14 @@ namespace MOVIN
                 if (!Directory.Exists(directory))
                     return false;
 
+                var target = ValidationTarget;
                 var nowUtc = DateTime.UtcNow;
                 FileInfo latestAppFile = null;
                 var latestSessionId = "";
                 foreach (var path in Directory.EnumerateFiles(directory, $"*{ValidationAppSuffix}"))
                 {
                     var appFile = new FileInfo(path);
-                    if (!TryGetValidationFallbackSession(appFile, nowUtc, out var sessionId))
+                    if (!TryGetValidationFallbackSession(appFile, nowUtc, target, out var sessionId))
                         continue;
 
                     if (latestAppFile == null || appFile.LastWriteTimeUtc > latestAppFile.LastWriteTimeUtc)
@@ -213,7 +200,7 @@ namespace MOVIN
                 if (latestAppFile == null)
                     return false;
 
-                return OpenValidationSession(latestSessionId, ValidationTargetUnity, directory, true);
+                return OpenValidationSession(latestSessionId, target, directory, true);
             }
             catch (Exception ex)
             {
@@ -222,7 +209,7 @@ namespace MOVIN
             }
         }
 
-        private static bool TryGetValidationFallbackSession(FileInfo appFile, DateTime nowUtc, out string sessionId)
+        private static bool TryGetValidationFallbackSession(FileInfo appFile, DateTime nowUtc, string target, out string sessionId)
         {
             sessionId = "";
             if (appFile == null || !appFile.Name.EndsWith(ValidationAppSuffix, StringComparison.Ordinal))
@@ -236,11 +223,11 @@ namespace MOVIN
             if (string.IsNullOrWhiteSpace(sessionId))
                 return false;
 
-            var headerStatus = ReadValidationAppHeaderStatus(appFile.FullName, sessionId);
+            var headerStatus = ReadValidationAppHeaderStatus(appFile.FullName, sessionId, target);
             return headerStatus != ValidationAppHeaderStatus.Invalid;
         }
 
-        private static ValidationAppHeaderStatus ReadValidationAppHeaderStatus(string path, string sessionId)
+        private static ValidationAppHeaderStatus ReadValidationAppHeaderStatus(string path, string sessionId, string target)
         {
             try
             {
@@ -258,10 +245,10 @@ namespace MOVIN
                 if (session != $"session={sessionId}")
                     return ValidationAppHeaderStatus.Invalid;
 
-                var target = reader.ReadLine();
-                if (target == null)
+                var targetLine = reader.ReadLine();
+                if (targetLine == null)
                     return ValidationAppHeaderStatus.Incomplete;
-                if (target != $"target={ValidationTargetUnity}")
+                if (targetLine != $"target={target}")
                     return ValidationAppHeaderStatus.Invalid;
 
                 var packetFormat = reader.ReadLine();
@@ -405,12 +392,6 @@ namespace MOVIN
                 );
                 NoteValidationLineWrittenLocked();
             }
-        }
-
-        [Obsolete("Use CapturePrivateAppliedPose.")]
-        protected void CaptureValidationAppliedPose(string boneName, Transform boneTransform, bool includeScale)
-        {
-            CapturePrivateAppliedPose(boneName, boneTransform, includeScale);
         }
 
         private static bool TryReadValidationBegin(OSCMessage msg, out string sessionId, out string target, out string directory)

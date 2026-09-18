@@ -5980,7 +5980,6 @@ MonoBehaviour:
   verboseLogging: 0
   forceRunInBackground: 1
   maxBufferedFramesBeforeDrop: 6
-  passthroughUnityCoordinates: 1
   rootBoneName: 
 --- !u!114 &2854249235418876243
 MonoBehaviour:

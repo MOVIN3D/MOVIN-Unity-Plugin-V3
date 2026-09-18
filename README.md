@@ -70,8 +70,9 @@ Use the same character model in MOVIN Studio and Unity. This is required rather 
 2. Place the character in the scene.
 3. Add `MOVIN.MocapReceiver` to the character root GameObject.
 4. Keep `Listen Port` at `11235`, or set it to the port used by your sender.
-5. Leave `Root Bone Name` empty. The receiver detects the skeleton root, and if that guess falls short it adopts the root name the sender includes in every root pose. Set it only to pin a specific root, such as driving the upper body alone.
-6. Optionally add `MOVIN.MotionStreamMonitorUI` to the same GameObject to show runtime diagnostics.
+5. Keep `Stream Target` at `Unity` unless MOVIN Studio is streaming to a different target. The receiver listens on `/MOVIN/<Stream Target>/Root` and `/MOVIN/<Stream Target>/Bone`, and the value is applied when the receiver starts.
+6. Leave `Root Bone Name` empty. The receiver detects the skeleton root, and if that guess falls short it adopts the root name the sender includes in every root pose. Set it only to pin a specific root, such as driving the upper body alone.
+7. Optionally add `MOVIN.MotionStreamMonitorUI` to the same GameObject to show runtime diagnostics.
 
 `Scale Bone Objects` is on by default and only affects rigs that draw their bones as meshes, where every joint owns a `<bone>BoneObject` child. On such a rig those helper meshes are scaled so the drawn bones keep reaching the next joint when the streamed bone lengths differ from the character's rest pose. A plain `.fbx` with a joint hierarchy and one skinned mesh has no helper objects, so the option does nothing.
 
@@ -80,35 +81,32 @@ Use the same character model in MOVIN Studio and Unity. This is required rather 
 Every runtime script lives in the `MOVIN` namespace, and the low-level OSC parser lives in `MOVIN.OSC`. Nothing is declared in the global namespace, so the plugin coexists with other OSC libraries such as extOSC: a file that only needs the receiver adds `using MOVIN;`, and a short `OSCMessage` reference in that file still resolves to the other library unless `using MOVIN.OSC;` is added as well.
 
 - `MOVIN.MotionStreamReceiver`
-  UDP receiver for the MOVIN Studio motion stream. It listens on port `11235` by default, parses OSC packets, buffers motion frames by frame index, and dispatches data on Unity's main thread.
+  UDP receiver for the MOVIN Studio motion stream. It listens on port `11235` by default, parses OSC packets, buffers motion frames by frame index, and applies one completed frame per `Update()` on Unity's main thread. `OnRootPose` and `OnBonePose` events fire for every applied pose.
 - `MOVIN.MocapReceiver`
   Extends `MotionStreamReceiver`. Applies streamed root and bone poses to a Unity character hierarchy, and scales `<bone>BoneObject` helper meshes on rigs that draw their bones as meshes.
 - `MOVIN.MotionStreamMonitorUI`
   Runtime monitor for socket FPS, input FPS, applied frame FPS, frame drops, playback latency, queue size, processing errors, and validation state.
 - `MOVIN.MotionStreamExampleLogger`
   Minimal example that subscribes to the receiver events and logs a few of them.
-- `MOVIN.OSC.OSCMessage`, `MOVIN.OSC.OSCParser`, `MOVIN.OSC.OSCArgReader`
+- `MOVIN.OSC.OSCMessage`, `MOVIN.OSC.OSCParser`
   Dependency-free OSC 1.0 message and bundle parsing used by the receiver. Only needed if you parse OSC packets yourself.
 
 ## Stream Protocol
 
-MOVIN Studio streams motion as OSC 1.0 messages over UDP. The addresses borrow their names from the VMC protocol, but the payload is MOVIN specific, so **the stream is not interoperable with standard VMC senders or receivers**. Do not point a VMC application at this receiver, and do not point MOVIN Studio at a VMC receiver: the extra leading argument breaks a strict VMC parser.
+MOVIN Studio streams motion as OSC 1.0 messages over UDP, one message per bone per frame, without bundles. The addresses live in the `MOVIN` namespace and carry the stream target selected in MOVIN Studio:
 
-MOVIN motion arrives on two addresses, and these are the only ones the plugin applies to a character:
+- `/MOVIN/<target>/Root` with `(int frame, string boneName, float px, py, pz, float qx, qy, qz, qw, float sx, sy, sz)`
+- `/MOVIN/<target>/Bone` with `(int frame, string boneName, float px, py, pz, float qx, qy, qz, qw)`
 
-- `/VMC/Ext/Root/Pos` with `(int frameIndex, string rootName, float px, py, pz, float qx, qy, qz, qw[, float sx, sy, sz])`
-- `/VMC/Ext/Bone/Pos` with `(int frameIndex, string boneName, float px, py, pz, float qx, qy, qz, qw)`
+The default target is `Unity`, so a stock receiver listens on `/MOVIN/Unity/Root` and `/MOVIN/Unity/Bone`. Change `Stream Target` on the receiver when MOVIN Studio streams to another target.
 
-Differences from standard VMC:
+- `frame` is a monotonically increasing frame index that groups the messages of one motion frame so they can be buffered and applied together. During a stream validation session it is negative, encoded as `-(index + 1)`.
+- `Root` carries exactly one bone per frame, the first bone of the streamed rig, with its local scale. Every other bone arrives on `Bone`.
+- Positions and rotations are local transforms in Unity coordinates and meters, with no axis or unit conversion. Bone names are the transform names of the model loaded in MOVIN Studio; match bones by name, not by arrival order.
+- Wrist and finger bones are omitted when hand streaming is off in MOVIN Studio.
+- `/MOVIN/StreamValidation/Begin` and `/MOVIN/StreamValidation/End` are control messages used by the diagnostic described under Stream Validation.
 
-- A leading `int frameIndex` groups the messages of one motion frame so they can be buffered and applied together.
-- Bone names are the transform names of the model loaded in MOVIN Studio, not `HumanBodyBones` names, and positions are applied as well as rotations.
-- The default port is `11235` rather than the VMC default `39539`.
-- `/MOVIN/StreamValidation/Begin` and `/MOVIN/StreamValidation/End` are MOVIN-only control messages used by the diagnostic described under Stream Validation.
-
-Messages on these two addresses that carry no frame index are still parsed in the plain VMC shape and dispatched immediately through the events, but they skip frame buffering.
-
-The receiver also parses the rest of the common VMC address surface, including `/VMC/Ext/Blend/Val`, `/VMC/Ext/Blend/Apply`, `/VMC/Ext/Cam`, and the HMD, controller, and tracker addresses. Those are exposed as C# events for your own code to handle. The plugin does not consume them and ships no blendshape or camera handling of its own.
+**The stream is not VMC.** Older MOVIN Studio versions sent the same payload on `/VMC/Ext/Root/Pos` and `/VMC/Ext/Bone/Pos`. The receiver still accepts those two legacy addresses when the message starts with a frame index, so an older MOVIN Studio keeps working, and this fallback will be removed in a later release. Standard VMC messages, which carry no frame index, are ignored, and no other VMC address is handled. Do not point a VMC application at this receiver or MOVIN Studio at a VMC receiver.
 
 ## Frame Buffering and Drops
 
@@ -123,7 +121,7 @@ MOVIN motion frames are buffered by frame index on the socket receive thread and
 
 ## Stream Validation
 
-The `Validation Logging` fields on the receiver, and the `Validation` row in the monitor, belong to a diagnostic MOVIN uses when tracing a stream problem. MOVIN Studio starts and stops the session, so leave these at their defaults and ignore them during normal use. Nothing is written unless MOVIN Studio asks for it.
+The `Validation Logging` fields on the receiver, and the `Validation` row in the monitor, belong to a diagnostic MOVIN uses when tracing a stream problem. MOVIN Studio starts and stops the session, so leave these at their defaults and ignore them during normal use. Nothing is written unless MOVIN Studio asks for it. The session target must match the receiver's `Stream Target`.
 
 If MOVIN support requests logs, they are written under:
 
@@ -133,7 +131,7 @@ Documents/MOVIN Studio/StreamValidation/Unity
 
 ## Breaking Changes
 
-Every script now sits in a namespace, and the receiver family no longer carries `VMC` in its name because the stream is not standard VMC. Prefabs and scenes reference scripts by GUID, so existing scenes and prefabs keep working after updating. Code that referenced the old names needs `using MOVIN;` and the renames below.
+Every script now sits in a namespace, the receiver family no longer carries `VMC` in its name, and the stream moved to `/MOVIN/<target>/...` addresses. Prefabs and scenes reference scripts by GUID, so existing scenes and prefabs keep working after updating. Code that referenced the old names needs `using MOVIN;` and the renames below.
 
 | Before | After |
 |---|---|
@@ -141,16 +139,19 @@ Every script now sits in a namespace, and the receiver family no longer carries 
 | `MOVIN.Core.MocapReceiver` | `MOVIN.MocapReceiver` |
 | `VMCReceiverMonitorUI` | `MOVIN.MotionStreamMonitorUI` |
 | `VMCExampleLogger` | `MOVIN.MotionStreamExampleLogger` |
-| `OSCMessage`, `OSCParser`, `OSCArgReader` | `MOVIN.OSC.OSCMessage`, `MOVIN.OSC.OSCParser`, `MOVIN.OSC.OSCArgReader` |
+| `OSCMessage`, `OSCParser` | `MOVIN.OSC.OSCMessage`, `MOVIN.OSC.OSCParser` |
+| `/VMC/Ext/Root/Pos`, `/VMC/Ext/Bone/Pos` | `/MOVIN/Unity/Root`, `/MOVIN/Unity/Bone` (legacy addresses still accepted for now) |
 
-The wire protocol, the default port, the serialized field names, and the receiver events are unchanged.
+Removed: the VMC-only events `OnOk`, `OnTime`, `OnBlendShapeValue`, `OnBlendShapeApply`, `OnCamera`, `OnHmdPos`, `OnControllerPos`, `OnTrackerPos`, the `BlendshapeValues` dictionary, `OSCArgReader`, the unused `passthroughUnityCoordinates` option, and the root pose offset argument. `OnRootPose` now has the signature `(string name, Vector3 position, Quaternion rotation, Vector3? scale)`.
+
+The default port, the serialized receiver fields, and the frame buffering behavior are unchanged.
 
 ## Troubleshooting
 
 - No packets are shown in the monitor:
   Check the sender destination IP, UDP port `11235`, firewall rules, and whether another app is already using the same port.
 - Packets arrive but the character does not move:
-  Confirm that `MocapReceiver` is on the character root, the streamed bone names match the Unity hierarchy, and `Root Bone Name` is set only when needed.
+  Confirm that `MocapReceiver` is on the character root, that `Stream Target` matches the target MOVIN Studio streams to, that the streamed bone names match the Unity hierarchy, and that `Root Bone Name` is set only when needed. Enable `Verbose Logging` to see every incoming address in the Console.
 - Only part of the character moves, such as the upper body:
   The mapped bones stop short of the rest of the skeleton. `MocapReceiver` logs a warning naming every streamed bone it could not match, so check the Console and then set `Root Bone Name` to the top of your skeleton, for example `RootBone` or `Hips`.
 - Motion is delayed or frames are dropped:
