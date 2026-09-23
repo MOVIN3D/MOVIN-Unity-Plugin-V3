@@ -1,6 +1,17 @@
-# MOVIN Unity Plugin V3 (MOVIN Studio v3.0.0+)
+# MOVIN Unity Plugin V3 v3.3.0 (MOVIN Studio v3.3.0+)
 
 MOVIN Unity Plugin V3 is a Unity sample project and import package for receiving the MOVIN Studio motion stream over OSC/UDP, previewing streamed characters, and checking stream health in Unity.
+
+## Which Version Do I Need?
+
+Pick the plugin by the MOVIN Studio version you run. The two streams are not compatible, so a mismatched pair connects but the character does not move.
+
+| MOVIN Studio | Plugin | Download |
+|---|---|---|
+| `v3.3.0` or later | `v3.3.0` or later | [Latest release](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/latest) |
+| `v3.0.0` to `v3.2.0` | `v3.0.0` | [v3.0.0](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.0.0) |
+
+A plugin version names the lowest MOVIN Studio version it supports. A patch release such as `v3.3.1` is a plugin-only fix for the same MOVIN Studio range and does not require MOVIN Studio `v3.3.1`.
 
 ## What Is Included
 
@@ -16,7 +27,7 @@ MOVIN Unity Plugin V3 is a Unity sample project and import package for receiving
 - Unity `6000.4.10f1`
 - Universal Render Pipeline (URP) `17.4.0`
 - Input System `1.19.0`
-- A MOVIN Studio build that streams on the `/MOVIN/<target>/...` addresses. Older builds that still stream on `/VMC/...` are not supported by this plugin version.
+- MOVIN Studio `v3.3.0` or later. For MOVIN Studio `v3.0.0` to `v3.2.0`, use plugin [v3.0.0](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.0.0).
 - Git LFS when cloning this repository, because the Unity package is stored as an LFS object
 
 ## Installation
@@ -107,7 +118,7 @@ The default target is `Unity`, so a stock receiver listens on `/MOVIN/Unity/Root
 - Wrist and finger bones are omitted when hand streaming is off in MOVIN Studio.
 - `/MOVIN/StreamValidation/Begin` and `/MOVIN/StreamValidation/End` are control messages used by the diagnostic described under Stream Validation.
 
-**The stream is not VMC.** Earlier releases borrowed the `/VMC/Ext/Root/Pos` and `/VMC/Ext/Bone/Pos` address names for the same payload. This plugin handles no `/VMC/...` address at all, so a MOVIN Studio build that still streams on them has to be updated before it can drive this receiver. Do not point a VMC application at this receiver or MOVIN Studio at a VMC receiver.
+**The stream is not VMC.** Earlier releases borrowed the `/VMC/Ext/Root/Pos` and `/VMC/Ext/Bone/Pos` address names for the same payload. MOVIN Studio `v3.2.0` and earlier stream on them. This plugin handles no `/VMC/...` address at all, so those Studio versions need plugin `v3.0.0` instead. Do not point a VMC application at this receiver or MOVIN Studio at a VMC receiver.
 
 ## Frame Buffering and Drops
 
@@ -132,7 +143,7 @@ Documents/MOVIN Studio/StreamValidation/Unity
 
 ## Breaking Changes
 
-Every script now sits in a namespace, the receiver family no longer carries `VMC` in its name, and the stream moved to `/MOVIN/<target>/...` addresses. Prefabs and scenes reference scripts by GUID, so existing scenes and prefabs keep working after updating. Code that referenced the old names needs `using MOVIN;` and the renames below.
+Plugin `v3.3.0` breaks compatibility with `v3.0.0`. Every script now sits in a namespace, the receiver family no longer carries `VMC` in its name, and the stream moved to `/MOVIN/<target>/...` addresses. Prefabs and scenes reference scripts by GUID, so existing scenes and prefabs keep working after updating. Code that referenced the old names needs `using MOVIN;` and the renames below.
 
 | Before | After |
 |---|---|
@@ -152,7 +163,7 @@ The default port, the serialized receiver fields, and the frame buffering behavi
 - No packets are shown in the monitor:
   Check the sender destination IP, UDP port `11235`, firewall rules, and whether another app is already using the same port.
 - Packets arrive but the character does not move:
-  Confirm that `MocapReceiver` is on the character root, that `Stream Target` matches the target MOVIN Studio streams to, that the streamed bone names match the Unity hierarchy, and that `Root Bone Name` is set only when needed. Enable `Verbose Logging` to see every incoming address in the Console. Addresses starting with `/VMC/` mean MOVIN Studio is older than this plugin and needs updating.
+  Confirm that `MocapReceiver` is on the character root, that `Stream Target` matches the target MOVIN Studio streams to, that the streamed bone names match the Unity hierarchy, and that `Root Bone Name` is set only when needed. Enable `Verbose Logging` to see every incoming address in the Console. Addresses starting with `/VMC/` mean MOVIN Studio is `v3.2.0` or earlier: update MOVIN Studio to `v3.3.0` or use plugin `v3.0.0`.
 - Only part of the character moves, such as the upper body:
   The mapped bones stop short of the rest of the skeleton. `MocapReceiver` logs a warning naming every streamed bone it could not match, so check the Console and then set `Root Bone Name` to the top of your skeleton, for example `RootBone` or `Hips`.
 - Motion is delayed or frames are dropped:
