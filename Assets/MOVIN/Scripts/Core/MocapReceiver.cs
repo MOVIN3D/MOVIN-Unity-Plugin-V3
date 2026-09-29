@@ -1,12 +1,19 @@
+﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
-namespace MOVIN.Core
+namespace MOVIN
 {
-    public class MocapReceiver : VMCReceiver
+    public class MocapReceiver : MOVINStreamReceiver
     {
+        protected override bool AppliesToCharacter => true;
         private const string BoneObjectSuffix = "BoneObject";
         private const float BoneScaleEpsilon = 1e-6f;
+
+        [Header("Character Identity")]
+        [Tooltip("Character name shown in Studio for comparison. Use the imported model name from Studio. Blank uses this GameObject's name without the (Clone) suffix.")]
+        public string characterName = "";
 
         [Header("Bone Search")]
         [SerializeField] string rootBoneName;
@@ -17,11 +24,38 @@ namespace MOVIN.Core
 
         private Dictionary<string, Transform> name2Transform;
         private HashSet<string> warnedMissingBones;
-        private bool streamedRootResolved;
+        private string lastStreamedRootName;
         private Dictionary<string, Vector3> bindLocalPositions;
         private HashSet<string> streamedBoneNames;
         private List<BoneObjectScale> boneObjectScales;
         private bool boneObjectScalesBuilt;
+
+        protected override (string Name, string[] Bones) GetStatusCharacter()
+        {
+            var character = string.IsNullOrWhiteSpace(characterName) ? name : characterName;
+            if (string.IsNullOrWhiteSpace(characterName) && character.EndsWith("(Clone)", StringComparison.Ordinal))
+            {
+                character = character.Substring(0, character.Length - "(Clone)".Length).TrimEnd();
+            }
+            // MOVIN's bone drawing helpers are not skeleton joints, including their mesh descendants.
+            var bones = name2Transform == null ? Array.Empty<string>() : name2Transform.Values
+                .Where(t => t && !IsDrawingHelper(t)).Select(t => t.name).ToArray();
+            return (character, bones);
+
+            bool IsDrawingHelper(Transform bone)
+            {
+                var helper = false;
+                for (var t = bone; t != transform && t.parent; t = t.parent)
+                {
+                    if (t.name == t.parent.name + BoneObjectSuffix
+                        || (t.name == t.parent.name + "Joint" && t.GetComponentInChildren<Renderer>(true)))
+                    {
+                        helper = true;
+                    }
+                }
+                return helper;
+            }
+        }
 
         private struct BoneObjectScale
         {
@@ -43,7 +77,7 @@ namespace MOVIN.Core
             base.OnDisable();
             name2Transform = null;
             warnedMissingBones = null;
-            streamedRootResolved = false;
+            lastStreamedRootName = null;
             streamedBoneNames = null;
             boneObjectScales = null;
             boneObjectScalesBuilt = false;
@@ -120,21 +154,18 @@ namespace MOVIN.Core
 
         private bool BuildFrom(Transform armature)
         {
-            name2Transform = new Dictionary<string, Transform>();
+            var bones = armature.GetComponentsInChildren<Transform>(true);
+            var duplicate = bones.GroupBy(t => t.name, StringComparer.Ordinal).FirstOrDefault(g => g.Skip(1).Any());
+            if (duplicate != null)
+            {
+                throw new InvalidOperationException($"Duplicate bone/Transform name '{duplicate.Key}' under '{armature.name}'. Rename it before streaming.");
+            }
+            name2Transform = bones.ToDictionary(t => t.name, StringComparer.Ordinal);
             warnedMissingBones = null;
             // The mapped subtree changed, so any cached scale plan points at the wrong bones.
             boneObjectScales = null;
             boneObjectScalesBuilt = false;
 
-            void Construct(Transform trs)
-            {
-                name2Transform[trs.name] = trs;
-
-                for (int i = 0; i < trs.childCount; ++i)
-                    Construct(trs.GetChild(i));
-            }
-
-            Construct(armature);
             if (name2Transform.Count <= 1)
             {
                 Debug.LogWarning($"MocapReceiver found armature '{armature.name}' but mapped no child bones.", this);
@@ -145,30 +176,20 @@ namespace MOVIN.Core
         }
 
         /// <summary>
-        /// The sender names its own skeleton root in every root pose, which is more reliable than
-        /// any local guess. When Root Bone Name is left blank and that root sits outside the
-        /// mapped subtree, remap from it so no branch (typically the legs) is silently skipped.
+        /// Resolve again when the streamed root changes, including after an unknown character.
+        /// The initial guess may include an avatar container and sibling meshes.
         /// </summary>
         private void TryAdoptStreamedSkeletonRoot(string streamedRootName)
         {
-            if (streamedRootResolved)
-                return;
-
             // An explicit Root Bone Name is a deliberate choice, so leave it alone.
-            if (!string.IsNullOrWhiteSpace(rootBoneName) || string.IsNullOrWhiteSpace(streamedRootName))
+            if (!string.IsNullOrWhiteSpace(rootBoneName) || string.IsNullOrWhiteSpace(streamedRootName)
+                || string.Equals(lastStreamedRootName, streamedRootName, StringComparison.Ordinal))
             {
-                streamedRootResolved = true;
                 return;
             }
 
-            if (name2Transform != null && name2Transform.ContainsKey(streamedRootName))
-            {
-                streamedRootResolved = true;
-                return;
-            }
-
+            lastStreamedRootName = streamedRootName;
             var streamedRoot = SearchArmature(transform, streamedRootName);
-            streamedRootResolved = true;
 
             if (!streamedRoot)
                 return;
@@ -193,7 +214,7 @@ namespace MOVIN.Core
         /// Records every bone name seen on the wire and reports whether the set grew. Helper objects
         /// are never streamed, so this set is exactly the skeleton the sender drives.
         /// </summary>
-        private bool TrackStreamedBones(VMCFramePose frame)
+        private bool TrackStreamedBones(FramePose frame)
         {
             streamedBoneNames ??= new HashSet<string>();
 
@@ -322,8 +343,9 @@ namespace MOVIN.Core
             return boneTransform.localPosition.magnitude / bindLength;
         }
 
-        protected override void ApplyFramePose(VMCFramePose frame)
+        protected override void ApplyFramePose(FramePose frame)
         {
+            StatusMatchedBones = StatusMissingBones = 0;
             if (frame.HasRoot)
             {
                 TryAdoptStreamedSkeletonRoot(frame.RootName);
@@ -348,10 +370,12 @@ namespace MOVIN.Core
             if (name2Transform == null || !name2Transform.TryGetValue(boneName, out var boneTransform) || !boneTransform)
             {
                 WarnMissingBoneOnce(boneName);
+                StatusMissingBones++;
                 return;
             }
 
             boneTransform.SetLocalPositionAndRotation(localPos, localOrientation);
+            StatusMatchedBones++;
 
             if (localScale.HasValue)
                 boneTransform.localScale = localScale.Value;

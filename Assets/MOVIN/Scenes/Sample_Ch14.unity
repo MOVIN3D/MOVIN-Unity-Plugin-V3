@@ -607,12 +607,10 @@ MonoBehaviour:
   verboseLogging: 0
   forceRunInBackground: 1
   maxBufferedFramesBeforeDrop: 6
-  passthroughUnityCoordinates: 1
   validationLogging: 1
   validationLogDirectory:
   validationSessionId:
   rootBoneName:
-  boneClass:
 --- !u!4 &1031632034741065745
 Transform:
   m_ObjectHideFlags: 0
