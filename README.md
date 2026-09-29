@@ -100,7 +100,7 @@ Studio 3.3.0+; retain plugin 3.0.0 for an older Studio installation.
 1. Open `Assets/MOVIN/Scenes/Sample_MOVINman.unity`.
 2. Enter Play Mode.
 3. In MOVIN Studio, select the Unity target and MOVINMan source, then set the Unity machine's IPv4 address as the destination (`127.0.0.1` when both apps run on the same computer).
-4. Set the destination port to `11235`, enable Motion, and click Start Streaming.
+4. Set the destination port to `11235` and click Start Streaming. Body streaming is enabled by default; enable Hand or Pointcloud in the streaming settings when needed.
 5. If packets do not arrive, allow inbound UDP traffic for Unity on port `11235` in the firewall.
 6. Check the on-screen `MOVIN Receiver` monitor for packet rate, applied frames, dropped frames, and latency.
 
