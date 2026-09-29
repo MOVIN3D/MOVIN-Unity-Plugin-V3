@@ -63,7 +63,7 @@ namespace MOVIN.Tests
                 var receiver = gameObject.AddComponent<MOVINStreamReceiver>();
 
                 Assert.That(TryBuffer(receiver, BoneMessage(BoneAddress, 0, "Hips")), Is.True);
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(0));
@@ -87,7 +87,7 @@ namespace MOVIN.Tests
 
                 Assert.That(TryBuffer(receiver, BoneMessage(VmcBoneAddress, 4, "Hips")), Is.False);
                 Assert.That(TryBuffer(receiver, BoneMessage("/VMC/Ext/Root/Pos", 4, "Root")), Is.False);
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out _), Is.False);
             }
@@ -113,7 +113,7 @@ namespace MOVIN.Tests
                 };
 
                 Assert.That(TryBuffer(receiver, frameless), Is.True);
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out _), Is.False);
             }
@@ -162,7 +162,7 @@ namespace MOVIN.Tests
                 };
 
                 Assert.That(TryBuffer(receiver, root), Is.True);
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(3));
@@ -383,7 +383,7 @@ namespace MOVIN.Tests
                 Assert.That(TryTakeFrame(receiver, out frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(1));
 
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(2));
@@ -414,7 +414,7 @@ namespace MOVIN.Tests
                 Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(2));
 
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(3));

@@ -71,7 +71,7 @@ namespace MOVIN.Tests
             Send("/MOVIN/Unity/Bone", ",isfffffff", 10, "Hips", 1f, 2f, 3f, 0f, 0f, 0f, 1f);
             Send("/MOVIN/PointCloud", ",iiiiifff", 1, 101, 1, 2, 1, 1f, 2f, 3f);
             WaitMessages(2);
-            Call("ForceCompleteCurrentFrame");
+            Set("_currentBufferedFrameTicks", DateTime.UtcNow.AddSeconds(-1).Ticks);
             Request();
             Call("Update");
             var first = Receive();
@@ -104,7 +104,7 @@ namespace MOVIN.Tests
             var bytes = Packet("/MOVIN/Unity/Bone", ",isfffffff", 0, "Hips", 0f, 0f, 0f, 0f, 0f, 0f, 1f);
             other.Send(bytes, bytes.Length, _destination);
             WaitMessages(1);
-            Call("ForceCompleteCurrentFrame");
+            Set("_currentBufferedFrameTicks", DateTime.UtcNow.AddSeconds(-1).Ticks);
             Request();
             Call("Update");
             Assert.That(Receive().Args[14], Is.EqualTo(0));
@@ -136,7 +136,7 @@ namespace MOVIN.Tests
             Send("/MOVIN/Unity/Bone", ",isfffffff", 10, "Hips", 1f, 2f, 3f, 0f, 0f, 0f, 1f);
             Send("/MOVIN/Unity/Bone", ",isfffffff", 10, "Absent", 0f, 0f, 0f, 0f, 0f, 0f, 1f);
             WaitMessages(3);
-            Call("ForceCompleteCurrentFrame");
+            Set("_currentBufferedFrameTicks", DateTime.UtcNow.AddSeconds(-1).Ticks);
             Request();
             LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(".*Absent.*"));
             Call("Update");
