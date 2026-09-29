@@ -24,6 +24,8 @@ Requires MOVIN Studio 3.3.0 or later. Studio 3.0.0 through 3.2.0 use plugin 3.0.
 - Runtime types use the `MOVIN` namespace; OSC parsing uses `MOVIN.OSC`.
 - `VMCReceiver` is now `MOVIN.MOVINStreamReceiver`; monitor/logger types also have new names.
   See README for the complete migration table. Existing script GUIDs are preserved.
+- Upgrading from 3.0.0/namespace previews requires moving the old Core and Tests folders and
+  metadata outside Assets before import. A simple overlay can retain renamed files and duplicate GUIDs.
 - Removed VMC-only events and unused options. Custom C# integrations must update their type/event
   references; asset import cannot rewrite user scripts.
 

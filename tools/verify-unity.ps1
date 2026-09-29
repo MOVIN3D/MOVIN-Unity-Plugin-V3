@@ -49,10 +49,14 @@ function run_unity([string]$stage, [string[]]$options) {
 if ($mode -eq 'upgrade') {
     run_unity 'legacy-import' @('-importPackage',"`"$legacy`"",'-quit')
     run_unity 'legacy-scene' @('-executeMethod','import_check.legacy_scene','-quit')
-    $old_tests = (Resolve-Path -LiteralPath "$destination/Assets/MOVIN/Tests").Path
-    if (-not $old_tests.StartsWith($destination + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Legacy test backup escaped the verification workspace' }
-    Move-Item -LiteralPath $old_tests -Destination "$destination/legacy-tests-backup"
-    Move-Item -LiteralPath "$old_tests.meta" -Destination "$destination/legacy-tests-backup.meta"
+    foreach ($folder in @('Scripts/Core', 'Tests')) {
+        $old_folder = (Resolve-Path -LiteralPath "$destination/Assets/MOVIN/$folder").Path
+        $backup = "$destination/legacy-$(Split-Path $folder -Leaf)-backup"
+        if (-not $old_folder.StartsWith($destination + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Legacy backup escaped the verification workspace' }
+        if (Test-Path -LiteralPath $backup) { throw "Backup already exists: $backup" }
+        Move-Item -LiteralPath $old_folder -Destination $backup
+        Move-Item -LiteralPath "$old_folder.meta" -Destination "$backup.meta"
+    }
 }
 $core = Join-Path $archives "MOVIN-Unity-Plugin-Core-v$($config.version).unitypackage"
 run_unity 'core-import' @('-importPackage',"`"$core`"",'-quit')

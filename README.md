@@ -57,14 +57,19 @@ old package binary; the current source project does not require it.
 
 ### Update an Existing Installation
 
-Back up or commit your Unity project before updating. Move the old bundled `Assets/MOVIN/Tests`
-folder and its `.meta` file outside `Assets` before importing Core. Those development tests refer
-to removed VMC types and Unity's package importer does not delete files omitted from a new package.
-Keep any custom tests in the backup for migration; do not discard your own work.
+Back up or commit your Unity project before updating. When upgrading from 3.0.0 or a namespace
+preview, close Unity and move these folders **and their `.meta` files outside `Assets`**:
 
-Import Core over the existing `Assets/MOVIN`
-installation, keeping all updated scripts and `.meta` files selected. Unity uses preserved GUIDs to
-update renamed scripts and retain existing scene/prefab references and serialized settings.
+- `Assets/MOVIN/Scripts/Core`
+- `Assets/MOVIN/Tests` (if present)
+
+Keep the backups, including custom code. Unity's package importer does not reliably rename old
+scripts: simply importing over them leaves duplicate files and can assign new GUIDs. The old
+bundled tests also reference removed VMC types. Keep all existing scenes, characters and prefabs.
+
+Reopen Unity and import Core with all scripts and `.meta` files selected, before opening/saving
+your scenes. The original GUIDs then resolve to the new classes, retaining component references
+and serialized fields. Merge your custom code back from the backup using the new API names.
 Then import Samples only if you also want to update the shipped examples; keep customized copies
 of sample scenes/characters outside their original package paths.
 
@@ -181,7 +186,7 @@ Set `Validation Log Directory` locally on the receiver to change the output fold
 
 ## Breaking Changes
 
-Plugin `v3.3.0` breaks compatibility with `v3.0.0`. Every script now sits in a namespace, the receiver family no longer carries `VMC` in its name, and the stream moved to `/MOVIN/<target>/...` addresses. Prefabs and scenes reference scripts by GUID, so existing scenes and prefabs keep working after updating. Code that referenced the old names needs `using MOVIN;` and the renames below.
+Plugin `v3.3.0` breaks compatibility with `v3.0.0`. Every script now sits in a namespace, the receiver family no longer carries `VMC` in its name, and the stream moved to `/MOVIN/<target>/...` addresses. Follow the upgrade steps above to preserve script GUIDs and existing scene/prefab references. Code that referenced the old names needs `using MOVIN;` and the renames below.
 
 | Before | After |
 |---|---|
