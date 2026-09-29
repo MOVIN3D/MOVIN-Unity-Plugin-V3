@@ -47,7 +47,8 @@ function run_unity([string]$stage, [string[]]$options) {
 }
 
 if ($mode -eq 'upgrade') {
-    run_unity 'legacy-import' @('-importPackage',"`"$legacy`"",'-executeMethod','import_check.legacy_scene','-quit')
+    run_unity 'legacy-import' @('-importPackage',"`"$legacy`"",'-quit')
+    run_unity 'legacy-scene' @('-executeMethod','import_check.legacy_scene','-quit')
     $old_tests = (Resolve-Path -LiteralPath "$destination/Assets/MOVIN/Tests").Path
     if (-not $old_tests.StartsWith($destination + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Legacy test backup escaped the verification workspace' }
     Move-Item -LiteralPath $old_tests -Destination "$destination/legacy-tests-backup"

@@ -1,1 +1,6 @@
 *.unitypackage filter=lfs diff=lfs merge=lfs -text
+
+# Keep package source bytes identical on Windows and CI.
+Assets/MOVIN/** text=auto eol=lf
+Assets/Settings/SampleSceneProfile.asset text eol=lf
+Assets/Settings/SampleSceneProfile.asset.meta text eol=lf
