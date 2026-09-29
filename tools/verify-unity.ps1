@@ -48,6 +48,10 @@ function run_unity([string]$stage, [string[]]$options) {
 
 if ($mode -eq 'upgrade') {
     run_unity 'legacy-import' @('-importPackage',"`"$legacy`"",'-executeMethod','import_check.legacy_scene','-quit')
+    $old_tests = (Resolve-Path -LiteralPath "$destination/Assets/MOVIN/Tests").Path
+    if (-not $old_tests.StartsWith($destination + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Legacy test backup escaped the verification workspace' }
+    Move-Item -LiteralPath $old_tests -Destination "$destination/legacy-tests-backup"
+    Move-Item -LiteralPath "$old_tests.meta" -Destination "$destination/legacy-tests-backup.meta"
 }
 $core = Join-Path $archives "MOVIN-Unity-Plugin-Core-v$($config.version).unitypackage"
 run_unity 'core-import' @('-importPackage',"`"$core`"",'-quit')
@@ -65,7 +69,8 @@ else {
     run_unity 'tests' @('-runTests','-testPlatform','EditMode','-testResults',"`"$xml`"")
     if (-not (Test-Path -LiteralPath $xml)) { throw 'Unity test result is missing' }
     [xml]$result = Get-Content -LiteralPath $xml
-    if ($result.'test-run'.result -ne 'Passed' -or [int]$result.'test-run'.passed -lt 66) { throw "Unity verification failed: $xml" }
+    $expected = if ($mode -eq 'upgrade') { 67 } else { 66 }
+    if ([int]$result.'test-run'.failed -ne 0 -or [int]$result.'test-run'.passed -lt $expected) { throw "Unity verification failed: $xml" }
 }
 @{
     version = $config.version

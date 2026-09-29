@@ -37,7 +37,8 @@ Run `tools/verify-unity.ps1` in a fresh workspace for each editor and installati
 isolated projects and never launches against an already open user project. Logs and NUnit XML
 remain in that workspace. `core` checks installation without URP or the test framework; `fresh`
 imports Core and Samples then runs the receiver and asset-reference tests; `upgrade` imports the
-3.0.0 package first, creates a scene using the old components, then imports the new packages and
+3.0.0 package first, creates a scene using the old components, backs up the bundled old test folder
+outside Assets (as required by the user upgrade instructions), then imports the new packages and
 checks that the saved scene and script GUIDs survive.
 
 ```powershell

@@ -57,7 +57,12 @@ old package binary; the current source project does not require it.
 
 ### Update an Existing Installation
 
-Back up or commit your Unity project before updating. Import Core over the existing `Assets/MOVIN`
+Back up or commit your Unity project before updating. Move the old bundled `Assets/MOVIN/Tests`
+folder and its `.meta` file outside `Assets` before importing Core. Those development tests refer
+to removed VMC types and Unity's package importer does not delete files omitted from a new package.
+Keep any custom tests in the backup for migration; do not discard your own work.
+
+Import Core over the existing `Assets/MOVIN`
 installation, keeping all updated scripts and `.meta` files selected. Unity uses preserved GUIDs to
 update renamed scripts and retain existing scene/prefab references and serialized settings.
 Then import Samples only if you also want to update the shipped examples; keep customized copies
