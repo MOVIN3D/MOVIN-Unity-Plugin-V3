@@ -44,7 +44,7 @@ namespace MOVIN.Tests
                         Address = "/MOVIN/Unity/Root",
                         Args = new object[] { 9, previousRoot, 0f, 0f, 0f, 0f, 0f, 0f, 1f, 1f, 1f, 1f }
                     } });
-                    typeof(MOVINStreamReceiver).GetMethod("ForceCompleteCurrentFrame", flags).Invoke(receiver, null);
+                    typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", flags).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
                     if (previousRoot == "RootBone")
                     {
                         LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("MocapReceiver received bone 'RootBone' but found no matching Transform"));
@@ -59,7 +59,7 @@ namespace MOVIN.Tests
                     Address = "/MOVIN/Unity/Bone",
                     Args = new object[] { 10, spine.name, 0f, .2f, 0f, 0f, 0f, 0f, 1f }
                 } });
-                typeof(MOVINStreamReceiver).GetMethod("ForceCompleteCurrentFrame", flags).Invoke(receiver, null);
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", flags).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
                 typeof(MOVINStreamReceiver).GetMethod("ApplyBufferedFrameIfAvailable", flags).Invoke(receiver, null);
 
                 var identity = (ValueTuple<string, string[]>)identityMethod.Invoke(receiver, null);

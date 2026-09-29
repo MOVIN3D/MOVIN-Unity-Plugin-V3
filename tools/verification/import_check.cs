@@ -22,8 +22,15 @@ public static class import_check{
     }
 
     public static void legacy_scene(){
+        save_receiver_scene(new[]{"VMCReceiver", "MOVIN.Core.MocapReceiver", "VMCReceiverMonitorUI", "VMCExampleLogger"});
+    }
+
+    public static void previous_release_scene(){
+        save_receiver_scene(new[]{"MOVIN.MOVINStreamReceiver", "MOVIN.MocapReceiver", "MOVIN.MotionStreamMonitorUI", "MOVIN.MotionStreamExampleLogger"});
+    }
+
+    static void save_receiver_scene(string[] types){
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        var types = new[]{"VMCReceiver", "MOVIN.Core.MocapReceiver", "VMCReceiverMonitorUI", "VMCExampleLogger"};
         foreach (var name in types){
             var type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(name)).Single(t => t != null);
             var obj = new GameObject(name);

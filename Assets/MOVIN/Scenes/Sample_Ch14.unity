@@ -607,9 +607,6 @@ MonoBehaviour:
   verboseLogging: 0
   forceRunInBackground: 1
   maxBufferedFramesBeforeDrop: 6
-  validationLogging: 1
-  validationLogDirectory:
-  validationSessionId:
   rootBoneName:
 --- !u!4 &1031632034741065745
 Transform:

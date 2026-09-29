@@ -4,6 +4,15 @@
 
 Requires MOVIN Studio 3.3.0 or later. Studio 3.0.0 through 3.2.0 use plugin 3.0.0.
 
+### Refreshed distribution
+
+- Reissued v3.3.0 at the maintainer's explicit request to exclude internal Stream Validation from
+  user Core packages. Download the refreshed files and verify their current SHA-256 checksums.
+- Validation source, settings, log capture and UI are developer-only behind `MOVIN_STREAM_VALIDATION`.
+  Motion, point clouds and Studio status/FPS are unchanged.
+- Users of the initial v3.3.0 package must follow the same Core backup/reimport procedure to remove
+  the old Validation file; overlay imports do not delete obsolete files.
+
 ### Added
 
 - Complete point cloud reception through `OnPointCloud`, sharing the motion UDP port.

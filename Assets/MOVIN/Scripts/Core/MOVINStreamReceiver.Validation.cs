@@ -1,4 +1,5 @@
-﻿using System;
+#if MOVIN_STREAM_VALIDATION
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -585,3 +586,4 @@ namespace MOVIN
         }
     }
 }
+#endif

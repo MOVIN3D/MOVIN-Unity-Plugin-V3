@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using UnityEngine;
 using MOVIN.OSC;
@@ -45,7 +45,11 @@ namespace MOVIN
                     IsRunning = _running,
                     ListenPort = listenPort,
                     BindAddress = bindAddress,
+#if MOVIN_STREAM_VALIDATION
                     QueuedMessages = _queue.Count,
+#else
+                    QueuedMessages = 0,
+#endif
                     MainThreadFrames = Interlocked.Read(ref _mainThreadFrames),
                     PacketsReceived = Interlocked.Read(ref _packetsReceived),
                     MessagesReceived = Interlocked.Read(ref _messagesReceived),

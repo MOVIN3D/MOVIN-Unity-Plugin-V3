@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -9,9 +9,11 @@ namespace MOVIN.OSC
         public string Address;
         public string Types; // e.g. ",sff"
         public object[] Args;
+#if MOVIN_STREAM_VALIDATION
         public byte[] PacketData;
         public int PacketLength;
         public long PacketSequence;
+#endif
     }
 
     public static class OSCParser

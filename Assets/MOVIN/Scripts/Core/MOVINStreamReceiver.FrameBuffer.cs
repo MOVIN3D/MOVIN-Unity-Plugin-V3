@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
@@ -387,7 +387,9 @@ namespace MOVIN
 
         private void ApplyBufferedFrame(FramePose frame)
         {
+#if MOVIN_STREAM_VALIDATION
             var privatePoseScope = EnterPrivatePoseFrame(frame.WireFrame);
+#endif
             var previousDispatchFrame = _currentDispatchFrame;
             _currentDispatchFrame = frame.Frame;
             try
@@ -400,7 +402,9 @@ namespace MOVIN
             }
             finally
             {
+#if MOVIN_STREAM_VALIDATION
                 ExitPrivatePoseFrame(privatePoseScope);
+#endif
                 _currentDispatchFrame = previousDispatchFrame;
             }
         }

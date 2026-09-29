@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.IO;
 using System.Reflection;
@@ -63,7 +63,7 @@ namespace MOVIN.Tests
                 var receiver = gameObject.AddComponent<MOVINStreamReceiver>();
 
                 Assert.That(TryBuffer(receiver, BoneMessage(BoneAddress, 0, "Hips")), Is.True);
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(0));
@@ -87,7 +87,7 @@ namespace MOVIN.Tests
 
                 Assert.That(TryBuffer(receiver, BoneMessage(VmcBoneAddress, 4, "Hips")), Is.False);
                 Assert.That(TryBuffer(receiver, BoneMessage("/VMC/Ext/Root/Pos", 4, "Root")), Is.False);
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out _), Is.False);
             }
@@ -113,7 +113,7 @@ namespace MOVIN.Tests
                 };
 
                 Assert.That(TryBuffer(receiver, frameless), Is.True);
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out _), Is.False);
             }
@@ -162,7 +162,7 @@ namespace MOVIN.Tests
                 };
 
                 Assert.That(TryBuffer(receiver, root), Is.True);
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(3));
@@ -197,6 +197,7 @@ namespace MOVIN.Tests
             }
         }
 
+#if MOVIN_STREAM_VALIDATION
         [Test]
         public void ValidationBeginAndEndPacketsParseExpectedFields()
         {
@@ -361,6 +362,7 @@ namespace MOVIN.Tests
             Assert.That(InvokeStatic("ValidationFloat", 1.2345678f), Is.EqualTo("1.234568"));
             Assert.That(InvokeStatic("ValidationFloat", -0.0000004f), Is.EqualTo("0.000000"));
         }
+#endif
 
         [Test]
         public void FrameBufferKeepsPlaybackOrderWhenBacklogIsBelowDropThreshold()
@@ -381,7 +383,7 @@ namespace MOVIN.Tests
                 Assert.That(TryTakeFrame(receiver, out frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(1));
 
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(2));
@@ -412,7 +414,7 @@ namespace MOVIN.Tests
                 Assert.That(TryTakeFrame(receiver, out var frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(2));
 
-                InvokeInstance(receiver, "ForceCompleteCurrentFrame");
+                typeof(MOVINStreamReceiver).GetField("_currentBufferedFrameTicks", PrivateInstance).SetValue(receiver, DateTime.UtcNow.AddSeconds(-1).Ticks);
 
                 Assert.That(TryTakeFrame(receiver, out frame), Is.True);
                 Assert.That(GetFrameNumber(frame), Is.EqualTo(3));
@@ -526,6 +528,7 @@ namespace MOVIN.Tests
             finally { UnityEngine.Object.DestroyImmediate(go); }
         }
 
+#if MOVIN_STREAM_VALIDATION
         [TestCase("../outside")]
         [TestCase("..\\outside")]
         [TestCase("C:/outside")]
@@ -568,6 +571,7 @@ namespace MOVIN.Tests
                 DeleteTempDirectory(directory);
             }
         }
+#endif
 
         [Test]
         public void MultipleReceiversRestoreBackgroundSettingAfterLastStops()
@@ -643,7 +647,9 @@ namespace MOVIN.Tests
             var receiver = go.AddComponent<MOVINStreamReceiver>();
             receiver.listenPort = 0;
             receiver.bindAddress = "127.0.0.1";
+#if MOVIN_STREAM_VALIDATION
             receiver.validationLogging = false;
+#endif
             try
             {
                 receiver.StartReceiver();

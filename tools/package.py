@@ -97,7 +97,15 @@ def check_source(root, config):
     if "stream VMC" in (root / "Assets/Readme.asset").read_text(encoding="utf-8-sig"):
         raise ValueError("Outdated sample instructions")
     groups = {name: collect_assets(root, paths) for name, paths in config["packages"].items()}
+    excluded = set(config["excluded_assets"])
+    selected = {name for assets in groups.values() for name in assets}
+    if not excluded.issubset(selected):
+        raise ValueError("Configured exclusions do not exist in the selected source assets")
+    groups = {group: {name: asset for name, asset in assets.items() if name not in excluded}
+              for group, assets in groups.items()}
     core = groups["Core"]
+    if "Assets/MOVIN/Scripts/Core/MOVINStreamReceiver.Validation.cs" in core:
+        raise ValueError("Internal Stream Validation must not be distributed")
     if "Assets/MOVIN/Scripts/Core/MOVINStreamReceiver.Status.cs" not in core:
         raise ValueError("Missing Studio status receiver")
     if any("MotionStreamReceiver." in name for name in core):

@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$unity,
     [Parameter(Mandatory=$true)][string]$workspace,
     [Parameter(Mandatory=$true)][string]$artifacts,
-    [Parameter(Mandatory=$true)][ValidateSet('core','fresh','upgrade')][string]$mode,
+    [Parameter(Mandatory=$true)][ValidateSet('core','fresh','upgrade','refresh')][string]$mode,
     [Parameter(Mandatory=$true)][AllowEmptyString()][string]$legacy
 )
 $ErrorActionPreference = 'Stop'
@@ -15,7 +15,7 @@ $archives = (Resolve-Path -LiteralPath $artifacts).Path
 if ($LASTEXITCODE -ne 0) { throw 'Package verification failed' }
 $manifest = Get-Content -LiteralPath "$archives/release-manifest.json" -Raw | ConvertFrom-Json
 if (Test-Path -LiteralPath $destination) { throw "Use a new, empty verification path: $destination" }
-if ($mode -eq 'upgrade') { $legacy = (Resolve-Path -LiteralPath $legacy).Path }
+if ($mode -in @('upgrade','refresh')) { $legacy = (Resolve-Path -LiteralPath $legacy).Path }
 $editor_version = Split-Path (Split-Path (Split-Path $editor -Parent) -Parent) -Leaf
 if ($editor_version -notin $config.unity_versions) { throw "Editor version is not in release.json: $editor_version" }
 $urp = if ($editor_version.StartsWith('6000.0.')) { '17.0.4' } else { $config.sample_urp }
@@ -46,16 +46,19 @@ function run_unity([string]$stage, [string[]]$options) {
     if ($process.ExitCode -ne 0) { throw "Unity $stage failed ($($process.ExitCode)); inspect $log" }
 }
 
-if ($mode -eq 'upgrade') {
+if ($mode -in @('upgrade','refresh')) {
     run_unity 'legacy-import' @('-importPackage',"`"$legacy`"",'-quit')
-    run_unity 'legacy-scene' @('-executeMethod','import_check.legacy_scene','-quit')
+    $scene_method = if ($mode -eq 'upgrade') { 'import_check.legacy_scene' } else { 'import_check.previous_release_scene' }
+    run_unity 'legacy-scene' @('-executeMethod',$scene_method,'-quit')
     foreach ($folder in @('Scripts/Core', 'Tests')) {
-        $old_folder = (Resolve-Path -LiteralPath "$destination/Assets/MOVIN/$folder").Path
-        $backup = "$destination/legacy-$(Split-Path $folder -Leaf)-backup"
-        if (-not $old_folder.StartsWith($destination + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Legacy backup escaped the verification workspace' }
-        if (Test-Path -LiteralPath $backup) { throw "Backup already exists: $backup" }
-        Move-Item -LiteralPath $old_folder -Destination $backup
-        Move-Item -LiteralPath "$old_folder.meta" -Destination "$backup.meta"
+        if (Test-Path -LiteralPath "$destination/Assets/MOVIN/$folder") {
+            $old_folder = (Resolve-Path -LiteralPath "$destination/Assets/MOVIN/$folder").Path
+            $backup = "$destination/legacy-$(Split-Path $folder -Leaf)-backup"
+            if (-not $old_folder.StartsWith($destination + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Legacy backup escaped the verification workspace' }
+            if (Test-Path -LiteralPath $backup) { throw "Backup already exists: $backup" }
+            Move-Item -LiteralPath $old_folder -Destination $backup
+            Move-Item -LiteralPath "$old_folder.meta" -Destination "$backup.meta"
+        }
     }
 }
 $core = Join-Path $archives "MOVIN-Unity-Plugin-Core-v$($config.version).unitypackage"
@@ -74,7 +77,7 @@ else {
     run_unity 'tests' @('-runTests','-testPlatform','EditMode','-testResults',"`"$xml`"")
     if (-not (Test-Path -LiteralPath $xml)) { throw 'Unity test result is missing' }
     [xml]$result = Get-Content -LiteralPath $xml
-    $expected = if ($mode -eq 'upgrade') { 67 } else { 66 }
+    $expected = if ($mode -in @('upgrade','refresh')) { 56 } else { 55 }
     if ([int]$result.'test-run'.failed -ne 0 -or [int]$result.'test-run'.passed -lt $expected) { throw "Unity verification failed: $xml" }
 }
 @{

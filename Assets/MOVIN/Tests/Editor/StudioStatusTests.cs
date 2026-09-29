@@ -28,7 +28,9 @@ namespace MOVIN.Tests
             _receiver = _object.AddComponent<MOVINStreamReceiver>();
             _receiver.bindAddress = "127.0.0.1";
             _receiver.listenPort = 0;
+#if MOVIN_STREAM_VALIDATION
             _receiver.validationLogging = false;
+#endif
             _receiver.StartReceiver();
             _destination = (IPEndPoint)((UdpClient)Get("_udp")).Client.LocalEndPoint;
             _sender = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
@@ -69,7 +71,7 @@ namespace MOVIN.Tests
             Send("/MOVIN/Unity/Bone", ",isfffffff", 10, "Hips", 1f, 2f, 3f, 0f, 0f, 0f, 1f);
             Send("/MOVIN/PointCloud", ",iiiiifff", 1, 101, 1, 2, 1, 1f, 2f, 3f);
             WaitMessages(2);
-            Call("ForceCompleteCurrentFrame");
+            Set("_currentBufferedFrameTicks", DateTime.UtcNow.AddSeconds(-1).Ticks);
             Request();
             Call("Update");
             var first = Receive();
@@ -102,7 +104,7 @@ namespace MOVIN.Tests
             var bytes = Packet("/MOVIN/Unity/Bone", ",isfffffff", 0, "Hips", 0f, 0f, 0f, 0f, 0f, 0f, 1f);
             other.Send(bytes, bytes.Length, _destination);
             WaitMessages(1);
-            Call("ForceCompleteCurrentFrame");
+            Set("_currentBufferedFrameTicks", DateTime.UtcNow.AddSeconds(-1).Ticks);
             Request();
             Call("Update");
             Assert.That(Receive().Args[14], Is.EqualTo(0));
@@ -125,14 +127,16 @@ namespace MOVIN.Tests
             typeof(MocapReceiver).GetMethod("BuildFrom", Flags).Invoke(_receiver, new object[] { _object.transform });
             _receiver.bindAddress = "127.0.0.1";
             _receiver.listenPort = 0;
+#if MOVIN_STREAM_VALIDATION
             _receiver.validationLogging = false;
+#endif
             _receiver.StartReceiver();
             _destination = (IPEndPoint)((UdpClient)Get("_udp")).Client.LocalEndPoint;
             Send("/MOVIN/Unity/Root", ",isffffffffff", 10, "Root", 0f, 0f, 0f, 0f, 0f, 0f, 1f, 1f, 1f, 1f);
             Send("/MOVIN/Unity/Bone", ",isfffffff", 10, "Hips", 1f, 2f, 3f, 0f, 0f, 0f, 1f);
             Send("/MOVIN/Unity/Bone", ",isfffffff", 10, "Absent", 0f, 0f, 0f, 0f, 0f, 0f, 1f);
             WaitMessages(3);
-            Call("ForceCompleteCurrentFrame");
+            Set("_currentBufferedFrameTicks", DateTime.UtcNow.AddSeconds(-1).Ticks);
             Request();
             LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(".*Absent.*"));
             Call("Update");

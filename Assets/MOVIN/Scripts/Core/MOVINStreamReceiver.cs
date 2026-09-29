@@ -1,5 +1,7 @@
-﻿using System;
+using System;
+#if MOVIN_STREAM_VALIDATION
 using System.Collections.Concurrent;
+#endif
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -59,7 +61,9 @@ namespace MOVIN
         private int _lastAppliedBufferedFrame = int.MinValue;
         private long _currentBufferedFrameTicks;
         private long _lastAcceptedFrameTimestamp;
+#if MOVIN_STREAM_VALIDATION
         private long _packetSequence;
+#endif
         private static readonly object FrameRatePolicyLock = new object();
         private static int _frameRatePolicyRefCount;
         private static int _sharedPreviousTargetFrameRate;
@@ -89,8 +93,10 @@ namespace MOVIN
         private double _lastPlaybackLatencyMs = -1.0;
         private int _currentDispatchFrame = int.MinValue;
 
+#if MOVIN_STREAM_VALIDATION
         // Only validation End controls need main-thread processing; the queue is bounded.
         private readonly ConcurrentQueue<OSCMessage> _queue = new ConcurrentQueue<OSCMessage>();
+#endif
 
         // --- Events you can subscribe to. Raised on the main thread when a buffered frame is applied. ---
         public event Action<string, Vector3, Quaternion, Vector3?> OnRootPose; // name, local pos, local rot, (opt) local scale
@@ -99,6 +105,7 @@ namespace MOVIN
         // Last-known bone poses keyed by streamed bone name.
         public readonly Dictionary<string, (Vector3 pos, Quaternion rot)> BonePoses = new();
 
+#if MOVIN_STREAM_VALIDATION
         private readonly struct PrivatePoseScope
         {
             public PrivatePoseScope(int previousWireFrame)
@@ -108,5 +115,6 @@ namespace MOVIN
 
             public int PreviousWireFrame { get; }
         }
+#endif
     }
 }

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using MOVIN.OSC;
 
 namespace MOVIN
@@ -40,6 +40,7 @@ namespace MOVIN
 
         private bool IsMotionAddress(string address) => IsRootAddress(address) || IsBoneAddress(address);
 
+#if MOVIN_STREAM_VALIDATION
         /// <summary>
         /// Main-thread handling of the messages the receive thread did not consume: the stream
         /// validation end control message, which drains buffered frames onto the character, and
@@ -53,6 +54,7 @@ namespace MOVIN
             if (msg.Address == ValidationEndAddress)
                 EndValidationSession(msg);
         }
+#endif
 
         private static bool TryReadFrameIndex(OSCMessage msg, out int frameIdx, out int argOffset)
         {
