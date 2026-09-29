@@ -16,27 +16,27 @@ MonoBehaviour:
   title: MOVIN Unity Plugin V3
   sections:
   - heading: Overview
-    text: Unity sample project and import package for receiving MOVIN/VMC motion capture streams over OSC/UDP.
+    text: MOVIN Unity Plugin v3.3.0 receives motion, point clouds, and status requests from MOVIN Studio v3.3.0 or later over OSC/UDP.
     linkText:
     url:
   - heading: Quick Start
-    text: Open Assets/MOVIN/Scenes/Sample_MOVINman.unity, enter Play mode, and stream VMC Protocol OSC data to UDP port 11235.
+    text: Open Assets/MOVIN/Scenes/Sample_MOVINman.unity, enter Play mode, and select the Unity target in MOVIN Studio. Send to this computer on UDP port 11235.
     linkText:
     url:
   - heading: Included Samples
-    text: Sample_MOVINman uses Assets/MOVIN/Character/MOVINman/MOVINman_V3.fbx. Sample_Ch14 and Sample_Ch29 provide additional Mixamo character setups.
+    text: Sample_MOVINman uses Assets/MOVIN/Character/MOVINman/MOVINman_V3.prefab. Sample_Ch14 and Sample_Ch29 provide additional Mixamo character setups. Install Core before Samples.
     linkText:
     url:
   - heading: Receiver Components
-    text: MotionStreamReceiver listens for the MOVIN Studio motion stream over OSC/UDP. MOVIN.MocapReceiver applies streamed root and bone poses to a character hierarchy. MotionStreamMonitorUI shows packet, frame, drop, latency, and validation status at runtime.
+    text: MOVINStreamReceiver receives MOVIN Studio motion and point clouds over OSC/UDP. MOVIN.MocapReceiver applies streamed root and bone poses to a character hierarchy. MotionStreamMonitorUI shows packet, frame, drop, latency, and validation status at runtime.
     linkText:
     url:
   - heading: Validation Logs
     text: Validation logs default to Documents/MOVIN Studio/StreamValidation/Unity unless Validation Log Directory is set on the receiver.
     linkText:
     url:
-  - heading: VMC Protocol
+  - heading: Downloads and Compatibility
     text:
-    linkText: Read the VMC Protocol reference
-    url: https://protocol.vmc.info/english.html
+    linkText: MOVIN Unity Plugin releases
+    url: https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases
   loadedLayout: 1

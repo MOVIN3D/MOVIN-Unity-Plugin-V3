@@ -29,7 +29,7 @@ namespace MOVIN
         private static readonly Color ValueColor = Color.white;
 
         [Header("Source")]
-        public MotionStreamReceiver receiver;
+        public MOVINStreamReceiver receiver;
 
         [Header("Display")]
         public bool visible = true;
@@ -94,13 +94,13 @@ namespace MOVIN
 
         private void Reset()
         {
-            receiver = GetComponent<MotionStreamReceiver>();
+            receiver = GetComponent<MOVINStreamReceiver>();
         }
 
         private void OnEnable()
         {
             if (!receiver)
-                receiver = GetComponent<MotionStreamReceiver>();
+                receiver = GetComponent<MOVINStreamReceiver>();
 
             EnsureDocument();
             BuildPanel();
@@ -586,7 +586,7 @@ namespace MOVIN
             }
         }
 
-        private void UpdateRates(MotionStreamReceiver.MonitorSnapshot snapshot)
+        private void UpdateRates(MOVINStreamReceiver.MonitorSnapshot snapshot)
         {
             var now = Time.unscaledTime;
             if (_lastRateSampleTime <= 0f)
@@ -635,7 +635,7 @@ namespace MOVIN
             _hasRateSample = false;
         }
 
-        private void UpdateStatus(MotionStreamReceiver.MonitorSnapshot snapshot, float packetAgeSeconds)
+        private void UpdateStatus(MOVINStreamReceiver.MonitorSnapshot snapshot, float packetAgeSeconds)
         {
             if (!snapshot.IsRunning)
             {
@@ -704,7 +704,7 @@ namespace MOVIN
             return $"{milliseconds / 1000.0:0.00}s";
         }
 
-        private static string FormatDropped(MotionStreamReceiver.MonitorSnapshot snapshot)
+        private static string FormatDropped(MOVINStreamReceiver.MonitorSnapshot snapshot)
         {
             if (snapshot.DroppedFrameCount == 0)
                 return "0";

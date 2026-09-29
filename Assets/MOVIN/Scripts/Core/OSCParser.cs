@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using UnityEngine;
 
 namespace MOVIN.OSC
 {
@@ -19,20 +18,36 @@ namespace MOVIN.OSC
     {
         public static void ParsePacket(byte[] data, int offset, int length, Action<OSCMessage> onMessage)
         {
-            if (data == null || onMessage == null || offset < 0 || length < 0 || offset > data.Length || length > data.Length - offset)
-                return;
+            if (data == null || onMessage == null)
+            {
+                throw new ArgumentNullException(data == null ? nameof(data) : nameof(onMessage));
+            }
+            if (offset < 0 || length <= 0 || offset > data.Length || length > data.Length - offset
+                || length > 65536 || length % 4 != 0)
+            {
+                throw new FormatException("Invalid OSC packet length.");
+            }
+            ParseElement(data, offset, offset + length, onMessage, 0);
+        }
 
-            var end = offset + length;
-
-            // Bundle or message?
+        private static void ParseElement(byte[] data, int offset, int end, Action<OSCMessage> onMessage, int depth)
+        {
+            if (depth > 16)
+            {
+                throw new FormatException("OSC bundle nesting exceeds 16 levels.");
+            }
             if (IsBundle(data, offset, end))
             {
-                ParseBundle(data, offset, end, onMessage);
+                ParseBundle(data, offset, end, onMessage, depth);
             }
             else
             {
                 var msg = ParseMessage(data, offset, end);
-                if (msg != null) onMessage(msg);
+                if (msg == null)
+                {
+                    throw new FormatException("Malformed or unsupported OSC message.");
+                }
+                onMessage(msg);
             }
         }
 
@@ -49,19 +64,21 @@ namespace MOVIN.OSC
             return data[offset + bundlePrefix.Length] == 0;
         }
 
-        private static void ParseBundle(byte[] data, int offset, int end, Action<OSCMessage> onMessage)
+        private static void ParseBundle(byte[] data, int offset, int end, Action<OSCMessage> onMessage, int depth)
         {
-            int idx = offset;
-            if (!TryReadPaddedString(data, end, ref idx, out var tag))
-                return;
-            if (tag != "#bundle") return;
-            if (idx + 8 > end) return;
-            idx += 8; // timetag (NTP 64-bit), skip
+            var idx = offset + 16; // Bundle tag and NTP timetag.
+            if (end - offset < 16)
+            {
+                throw new FormatException("Truncated OSC bundle header.");
+            }
             while (idx < end)
             {
-                if (!TryReadIntBE(data, end, ref idx, out var elemSize)) break;
-                if (elemSize <= 0 || idx + elemSize > end) break;
-                ParsePacket(data, idx, elemSize, onMessage);
+                if (!TryReadIntBE(data, end, ref idx, out var elemSize)
+                    || elemSize <= 0 || elemSize % 4 != 0 || elemSize > end - idx)
+                {
+                    throw new FormatException("Invalid OSC bundle element length.");
+                }
+                ParseElement(data, idx, idx + elemSize, onMessage, depth + 1);
                 idx += elemSize;
             }
         }
@@ -71,7 +88,7 @@ namespace MOVIN.OSC
             int idx = offset;
             if (!TryReadPaddedString(data, end, ref idx, out var address))
                 return null;
-            if (string.IsNullOrEmpty(address)) return null;
+            if (string.IsNullOrEmpty(address) || address[0] != '/') return null;
             if (idx >= end) return null;
             if (!TryReadPaddedString(data, end, ref idx, out var types))
                 return null;
@@ -101,12 +118,11 @@ namespace MOVIN.OSC
                         break;
                     // extend as needed (e.g., 'h', 'd', 'T', 'F')
                     default:
-                        // Skip unsupported type safely if possible
-                        Debug.LogWarning($"Unsupported OSC arg type '{t}' in {address}");
-                        return new OSCMessage { Address = address, Types = types, Args = args.ToArray() };
+                        return null;
                 }
             }
 
+            if (idx != end) return null;
             return new OSCMessage { Address = address, Types = types, Args = args.ToArray() };
         }
 
@@ -137,24 +153,23 @@ namespace MOVIN.OSC
             value = null;
             if (!TryReadIntBE(data, end, ref idx, out var len))
                 return false;
-            if (len < 0 || idx + len > end)
+            if (len < 0 || len > end - idx)
+                return false;
+
+            var padding = (4 - (len % 4)) % 4;
+            if (padding > end - idx - len)
                 return false;
 
             value = new byte[len];
             Buffer.BlockCopy(data, idx, value, 0, len);
-            idx += len;
-            var padded = idx + ((4 - (len % 4)) % 4);
-            if (padded > end)
-                return false;
-
-            idx = padded;
+            idx += len + padding;
             return true;
         }
 
         private static bool TryReadIntBE(byte[] data, int end, ref int idx, out int value)
         {
             value = 0;
-            if (idx < 0 || idx + 4 > end)
+            if (idx < 0 || end - idx < 4)
                 return false;
 
             value = (data[idx] << 24) | (data[idx + 1] << 16) | (data[idx + 2] << 8) | data[idx + 3];
@@ -165,7 +180,7 @@ namespace MOVIN.OSC
         private static bool TryReadFloatBE(byte[] data, int end, ref int idx, out float value)
         {
             value = 0f;
-            if (idx < 0 || idx + 4 > end)
+            if (idx < 0 || end - idx < 4)
                 return false;
 
             if (BitConverter.IsLittleEndian)

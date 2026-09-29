@@ -7,11 +7,10 @@ using MOVIN.OSC;
 
 namespace MOVIN
 {
-    public partial class MotionStreamReceiver
+    public partial class MOVINStreamReceiver
     {
         protected virtual void OnEnable()
         {
-            ApplyAppFrameRatePolicy();
             StartReceiver();
         }
 
@@ -23,8 +22,14 @@ namespace MOVIN
         public void StartReceiver()
         {
             if (_running) return;
+            if (_thread != null && _thread.IsAlive)
+            {
+                Debug.LogError("The previous motion receiver is still stopping. Retry StartReceiver after it exits.");
+                return;
+            }
             try
             {
+                ApplyAppFrameRatePolicy();
                 ApplyRunInBackgroundOverride();
                 ResolveStreamAddresses();
                 _remoteAny = new IPEndPoint(IPAddress.Any, 0);
@@ -32,14 +37,16 @@ namespace MOVIN
                 _udp = new UdpClient(new IPEndPoint(local, listenPort));
                 _udp.Client.ReceiveBufferSize = 1 << 20; // 1MB
                 ClearFrameBuffer();
+                ClearPointCloudBuffer();
+                ResetStudioStatus();
                 _running = true;
-                _thread = new Thread(ReceiveLoop) { IsBackground = true, Name = "MotionStreamReceiver" };
+                _thread = new Thread(ReceiveLoop) { IsBackground = true, Name = "MOVINStreamReceiver" };
                 _thread.Start();
-                Debug.Log($"MotionStreamReceiver listening on {local}:{listenPort} for {_rootAddress} and {_boneAddress}");
+                Debug.Log($"MOVINStreamReceiver listening on {local}:{listenPort} for {_rootAddress} and {_boneAddress}");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"MotionStreamReceiver failed to start: {ex}");
+                Debug.LogError($"MOVINStreamReceiver failed to start: {ex}");
                 _running = false;
                 _udp?.Close();
                 _udp = null;
@@ -53,9 +60,13 @@ namespace MOVIN
             _running = false;
             try { _udp?.Close(); } catch { /* ignore */ }
             _udp = null;
-            try { _thread?.Join(100); } catch { /* ignore */ }
-            _thread = null;
+            if (_thread != null && _thread.Join(100))
+            {
+                _thread = null;
+            }
+            while (_queue.TryDequeue(out _)) { }
             ClearFrameBuffer();
+            ClearPointCloudBuffer();
             OnPrivateReceiverStopping();
             RestoreRunInBackgroundOverride();
             RestoreAppFrameRatePolicy();
@@ -103,8 +114,12 @@ namespace MOVIN
             if (!forceRunInBackground || _runInBackgroundOverridden)
                 return;
 
-            _previousRunInBackground = Application.runInBackground;
-            Application.runInBackground = true;
+            if (_runInBackgroundRefCount == 0)
+            {
+                _previousRunInBackground = Application.runInBackground;
+                Application.runInBackground = true;
+            }
+            _runInBackgroundRefCount++;
             _runInBackgroundOverridden = true;
         }
 
@@ -113,39 +128,59 @@ namespace MOVIN
             if (!_runInBackgroundOverridden)
                 return;
 
-            Application.runInBackground = _previousRunInBackground;
             _runInBackgroundOverridden = false;
+            _runInBackgroundRefCount--;
+            if (_runInBackgroundRefCount == 0)
+            {
+                Application.runInBackground = _previousRunInBackground;
+            }
         }
 
         private void ReceiveLoop()
         {
+            var udp = _udp;
             while (_running)
             {
                 try
                 {
-                    var data = _udp.Receive(ref _remoteAny);
+                    var data = udp.Receive(ref _remoteAny);
                     var packetSequence = Interlocked.Increment(ref _packetSequence);
                     Interlocked.Increment(ref _packetsReceived);
                     Interlocked.Exchange(ref _lastPacketUtcTicks, DateTime.UtcNow.Ticks);
                     OSCParser.ParsePacket(data, 0, data.Length, (msg) =>
                     {
+                        if (!_running) return;
                         msg.PacketData = data;
                         msg.PacketLength = data.Length;
                         msg.PacketSequence = packetSequence;
                         MarkMessageReceived(msg);
                         try
                         {
-                            if (TryHandlePrivateReceiveThreadControlMessage(msg))
+                            if (TryHandleStatusRequest(msg))
+                            {
+                                MarkMessageDispatched();
+                            }
+                            else if (TryHandlePrivateReceiveThreadControlMessage(msg))
                             {
                                 MarkMessageDispatched();
                             }
                             else if (TryBufferMotionMessage(msg))
                             {
+                                lock (_statusLock) { _motionSource = _remoteAny; }
                                 RecordPrivateRawPacket(msg);
                                 MarkMessageDispatched();
                             }
-                            else
+                            else if (TryBufferPointCloudMessage(msg))
                             {
+                                lock (_statusLock) { _cloudSource = _remoteAny; }
+                                MarkMessageDispatched();
+                            }
+                            else if (validationLogging && msg.Address == ValidationEndAddress)
+                            {
+                                if (_queue.Count >= 64)
+                                {
+                                    throw new FormatException("Too many pending validation controls.");
+                                }
                                 _queue.Enqueue(msg);
                             }
                         }
@@ -161,9 +196,11 @@ namespace MOVIN
                     // likely closing; ignore
                     if (!_running) break;
                 }
+                catch (ObjectDisposedException) when (!_running) { }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning($"MotionStreamReceiver receive error: {ex.Message}");
+                    Interlocked.Increment(ref _processingErrors);
+                    Debug.LogWarning($"MOVINStreamReceiver receive error: {ex.Message}");
                 }
             }
         }
@@ -188,6 +225,8 @@ namespace MOVIN
             }
 
             ApplyBufferedFrameIfAvailable();
+            ApplyPointCloudIfAvailable();
+            ReplyToStudio();
         }
     }
 }

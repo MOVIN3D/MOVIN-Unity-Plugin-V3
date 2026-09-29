@@ -38,6 +38,10 @@ desktop.ini
 *.apk
 *.aab
 *.unitypackage.meta
+*.unitypackage
+/dist/
+/Verification/
+__pycache__/
 
 # Crash reports
 crashlytics-build.properties

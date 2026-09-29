@@ -2,13 +2,14 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using UnityEngine;
 using MOVIN.OSC;
 
 namespace MOVIN
 {
-    public partial class MotionStreamReceiver
+    public partial class MOVINStreamReceiver
     {
         private const string ValidationBeginAddress = "/MOVIN/StreamValidation/Begin";
         private const string ValidationEndAddress = "/MOVIN/StreamValidation/End";
@@ -32,7 +33,7 @@ namespace MOVIN
         [Tooltip("Write App-driven stream validation files for negative frameIndex packets.")]
         public bool validationLogging = true;
 
-        [Tooltip("Optional output directory. Empty uses Documents/MOVIN Studio/StreamValidation/Unity.")]
+        [Tooltip("Local output directory; remote paths are ignored. Empty uses Documents/MOVIN Studio/StreamValidation/Unity.")]
         public string validationLogDirectory = "";
 
         [Tooltip("Current App-driven validation session id.")]
@@ -149,13 +150,13 @@ namespace MOVIN
             if (!validationLogging)
                 return;
 
-            if (!TryReadValidationBegin(msg, out var sessionId, out var target, out var directory))
+            if (!TryReadValidationBegin(msg, out var sessionId, out var target, out _))
             {
                 Debug.LogWarning("Invalid stream validation begin packet.");
                 return;
             }
 
-            if (target != ValidationTarget)
+            if (!string.Equals(target, ValidationTarget, StringComparison.OrdinalIgnoreCase))
             {
                 Debug.LogWarning($"Unsupported stream validation target '{target}' for a receiver streaming to '{ValidationTarget}'.");
                 return;
@@ -163,7 +164,7 @@ namespace MOVIN
 
             try
             {
-                OpenValidationSession(sessionId, target, directory, false);
+                OpenValidationSession(sessionId, target, false);
             }
             catch (Exception ex)
             {
@@ -200,10 +201,11 @@ namespace MOVIN
                 if (latestAppFile == null)
                     return false;
 
-                return OpenValidationSession(latestSessionId, target, directory, true);
+                return OpenValidationSession(latestSessionId, target, true);
             }
             catch (Exception ex)
             {
+                CloseValidationLog();
                 Debug.LogWarning($"Failed to open stream validation fallback log: {ex.Message}");
                 return false;
             }
@@ -220,7 +222,7 @@ namespace MOVIN
                 return false;
 
             sessionId = appFile.Name.Substring(0, appFile.Name.Length - ValidationAppSuffix.Length);
-            if (string.IsNullOrWhiteSpace(sessionId))
+            if (!IsValidationSessionId(sessionId))
                 return false;
 
             var headerStatus = ReadValidationAppHeaderStatus(appFile.FullName, sessionId, target);
@@ -248,7 +250,7 @@ namespace MOVIN
                 var targetLine = reader.ReadLine();
                 if (targetLine == null)
                     return ValidationAppHeaderStatus.Incomplete;
-                if (targetLine != $"target={target}")
+                if (!string.Equals(targetLine, $"target={target}", StringComparison.OrdinalIgnoreCase))
                     return ValidationAppHeaderStatus.Invalid;
 
                 var packetFormat = reader.ReadLine();
@@ -269,7 +271,7 @@ namespace MOVIN
             }
         }
 
-        private bool OpenValidationSession(string sessionId, string target, string directory, bool fallback)
+        private bool OpenValidationSession(string sessionId, string target, bool fallback)
         {
             lock (_validationLock)
             {
@@ -282,18 +284,19 @@ namespace MOVIN
 
                 if (_validationWriter != null
                     && validationSessionId == sessionId
-                    && _validationTarget == target)
+                    && string.Equals(_validationTarget, target, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
 
                 CloseValidationLogLocked();
-                if (string.IsNullOrWhiteSpace(directory))
-                    directory = GetValidationLogDirectory();
-
+                if (!IsValidationSessionId(sessionId))
+                {
+                    throw new FormatException("Invalid stream validation session id.");
+                }
+                var directory = Path.GetFullPath(GetValidationLogDirectory());
                 Directory.CreateDirectory(directory);
                 validationSessionId = sessionId;
-                validationLogDirectory = directory;
                 _validationTarget = target;
                 _validationPacketIndex = 0;
                 _lastValidationPacketWritten = -1;
@@ -328,12 +331,17 @@ namespace MOVIN
 
             lock (_validationLock)
             {
-                _endedValidationSessions.Add(ValidationSessionKey(sessionId, target));
+                // Only remember our active session; unrelated End packets must not grow state.
+                if (_endedValidationSessions.Count >= 64)
+                {
+                    _endedValidationSessions.Clear();
+                }
 
                 if (_validationWriter != null
                     && validationSessionId == sessionId
-                    && _validationTarget == target)
+                    && string.Equals(_validationTarget, target, StringComparison.OrdinalIgnoreCase))
                 {
+                    _endedValidationSessions.Add(ValidationSessionKey(sessionId, _validationTarget));
                     CloseValidationLogLocked();
                     Debug.Log($"Stream validation log closed: {sessionId}");
                 }
@@ -346,7 +354,7 @@ namespace MOVIN
             {
                 return _validationWriter != null
                     && validationSessionId == sessionId
-                    && _validationTarget == target;
+                    && string.Equals(_validationTarget, target, StringComparison.OrdinalIgnoreCase);
             }
         }
 
@@ -406,7 +414,7 @@ namespace MOVIN
             var sessionArg = msg.Args[0] as string;
             var targetArg = msg.Args[1] as string;
             var directoryArg = msg.Args[3] as string;
-            if (string.IsNullOrWhiteSpace(sessionArg)
+            if (!IsValidationSessionId(sessionArg)
                 || string.IsNullOrWhiteSpace(targetArg)
                 || directoryArg == null)
             {
@@ -429,7 +437,7 @@ namespace MOVIN
 
             var sessionArg = msg.Args[0] as string;
             var targetArg = msg.Args[1] as string;
-            if (string.IsNullOrWhiteSpace(sessionArg) || string.IsNullOrWhiteSpace(targetArg))
+            if (!IsValidationSessionId(sessionArg) || string.IsNullOrWhiteSpace(targetArg))
                 return false;
 
             sessionId = sessionArg;
@@ -483,9 +491,16 @@ namespace MOVIN
             _lastValidationFlushUtcTicks = DateTime.UtcNow.Ticks;
         }
 
+        private static bool IsValidationSessionId(string sessionId)
+        {
+            return !string.IsNullOrEmpty(sessionId) && sessionId.Length <= 64
+                && sessionId.All(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9') || c == '_' || c == '-');
+        }
+
         private static string ValidationSessionKey(string sessionId, string target)
         {
-            return $"{target}|{sessionId}";
+            return $"{target.ToLowerInvariant()}|{sessionId}";
         }
 
         private string GetValidationLogDirectory()
@@ -502,7 +517,7 @@ namespace MOVIN
 
         private static StreamWriter OpenSharedWriter(string path)
         {
-            var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+            var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite);
             var writer = new StreamWriter(stream, new UTF8Encoding(false));
             writer.NewLine = "\n";
             return writer;
@@ -512,7 +527,7 @@ namespace MOVIN
         {
             writer.WriteLine(ValidationPacketHeader);
             writer.WriteLine($"session={sessionId}");
-            writer.WriteLine($"target={target}");
+            writer.WriteLine($"target={target.ToLowerInvariant()}");
             writer.WriteLine($"packet_format={ValidationPacketFormat}");
             writer.Flush();
         }
@@ -521,7 +536,7 @@ namespace MOVIN
         {
             writer.WriteLine(ValidationPoseHeader);
             writer.WriteLine($"session={sessionId}");
-            writer.WriteLine($"target={target}");
+            writer.WriteLine($"target={target.ToLowerInvariant()}");
             writer.WriteLine($"float={ValidationFloatFormat}");
             writer.Flush();
         }

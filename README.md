@@ -15,46 +15,57 @@ A plugin version names the lowest MOVIN Studio version it supports. A patch rele
 
 ## What Is Included
 
-- Complete Unity sample project
-- Reusable receiver scripts under `Assets/MOVIN`, all inside the `MOVIN` namespace
-- MOVINman V3 and Mixamo sample characters
-- Sample scenes for quick smoke testing
-- Runtime receiver monitor UI
-- `MOVIN-Unity-Plugin-V3.unitypackage` for importing the plugin into another Unity project
+- **Core**: reusable motion/point-cloud receivers, Studio status replies and runtime monitor UI
+- **Samples**: MOVINman V3 and Mixamo characters with three URP sample scenes
+- Complete Unity sample project in this repository
+- Source regression tests and release tooling (not imported into users' projects)
 
 ## Requirements
 
-- Unity `6000.4.10f1`
-- Universal Render Pipeline (URP) `17.4.0`
-- Input System `1.19.0`
-- MOVIN Studio `v3.3.0` or later. For MOVIN Studio `v3.0.0` to `v3.2.0`, use plugin [v3.0.0](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.0.0).
-- Git LFS when cloning this repository, because the Unity package is stored as an LFS object
+| Component | Requirements |
+|---|---|
+| Core | Verified with Unity `6000.0.43f1` and `6000.4.10f1`; no URP, Input System or Test Framework dependency |
+| Samples | Core plus URP; verified with URP `17.0.4` / Unity `6000.0.43f1` and URP `17.4.0` / Unity `6000.4.10f1` |
+| Repository sample project | Unity `6000.4.10f1`, URP `17.4.0`; project dependencies install through Package Manager |
+| MOVIN Studio | `v3.3.0` or later; Studio `v3.0.0`–`v3.2.0` uses plugin [v3.0.0](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.0.0) |
+
+These are tested Editor versions, not a promise of compatibility with every Unity version or build target.
 
 ## Installation
 
-### Option 1. Open the Sample Project
+### Import into Your Project
 
-1. Install Git LFS.
+Download from [v3.3.0](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.3.0):
 
-   ```bash
-   git lfs install
-   ```
+1. Import `MOVIN-Unity-Plugin-Core-v3.3.0.unitypackage` through `Assets > Import Package > Custom Package...`.
+2. For your own character, add `MOVIN.MocapReceiver`; sample assets are optional.
+3. To use the sample characters/scenes, install URP and import `MOVIN-Unity-Plugin-Samples-v3.3.0.unitypackage` after Core. Use a URP project or configure its render pipeline first.
 
-2. Clone this repository.
+Do not import the old all-in-one package after the new Core package. Generated packages are Release
+assets, not files maintained in the source checkout. SHA256SUMS.txt and release-manifest.json identify
+exactly what was exported. This is an asset-package distribution, not a UPM/Git URL package.
 
-   ```bash
-   git clone https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3.git
-   ```
+### Open the Sample Project
 
-3. Open the cloned folder from Unity Hub with Unity `6000.4.10f1`.
+```bash
+git clone --branch v3.3.0 https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3.git
+```
 
-### Option 2. Import the Unity Package
+Open the folder from Unity Hub with Unity `6000.4.10f1`. For development, check out `release` or a
+feature branch instead. Git LFS is only needed when checking out historical versions containing the
+old package binary; the current source project does not require it.
 
-1. Open your target Unity project.
-2. Select `Assets > Import Package > Custom Package...`.
-3. Choose `MOVIN-Unity-Plugin-V3.unitypackage`.
-4. Import the package contents.
-5. Add the receiver component and character assets you need to your scene.
+### Update an Existing Installation
+
+Back up or commit your Unity project before updating. Import Core over the existing `Assets/MOVIN`
+installation, keeping all updated scripts and `.meta` files selected. Unity uses preserved GUIDs to
+update renamed scripts and retain existing scene/prefab references and serialized settings.
+Then import Samples only if you also want to update the shipped examples; keep customized copies
+of sample scenes/characters outside their original package paths.
+
+Custom C# code using old type or event names must follow the [Breaking Changes](#breaking-changes)
+table. Importing an asset package cannot rewrite your scripts. Use the new plugin together with
+Studio 3.3.0+; retain plugin 3.0.0 for an older Studio installation.
 
 ## Quick Start
 
@@ -92,10 +103,10 @@ Use the same character model in MOVIN Studio and Unity. This is required rather 
 
 Every runtime script lives in the `MOVIN` namespace, and the low-level OSC parser lives in `MOVIN.OSC`. Nothing is declared in the global namespace, so the plugin coexists with other OSC libraries such as extOSC: a file that only needs the receiver adds `using MOVIN;`, and a short `OSCMessage` reference in that file still resolves to the other library unless `using MOVIN.OSC;` is added as well.
 
-- `MOVIN.MotionStreamReceiver`
-  UDP receiver for the MOVIN Studio motion stream. It listens on port `11235` by default, parses OSC packets, buffers motion frames by frame index, and applies one completed frame per `Update()` on Unity's main thread. `OnRootPose` and `OnBonePose` events fire for every applied pose.
+- `MOVIN.MOVINStreamReceiver`
+  UDP receiver for MOVIN Studio motion and point cloud streams. It listens on port `11235` by default, parses OSC packets, buffers motion frames by frame index, and applies one completed frame per `Update()` on Unity's main thread. `OnRootPose` and `OnBonePose` events fire for every applied pose; `OnPointCloud` delivers complete point clouds.
 - `MOVIN.MocapReceiver`
-  Extends `MotionStreamReceiver`. Applies streamed root and bone poses to a Unity character hierarchy, and scales `<bone>BoneObject` helper meshes on rigs that draw their bones as meshes.
+  Extends `MOVINStreamReceiver`. Applies streamed root and bone poses to a Unity character hierarchy, and scales `<bone>BoneObject` helper meshes on rigs that draw their bones as meshes.
 - `MOVIN.MotionStreamMonitorUI`
   Runtime monitor for socket FPS, input FPS, applied frame FPS, frame drops, playback latency, queue size, processing errors, and validation state.
 - `MOVIN.MotionStreamExampleLogger`
@@ -115,25 +126,45 @@ The default target is `Unity`, so a stock receiver listens on `/MOVIN/Unity/Root
 - `frame` is a monotonically increasing frame index that groups the messages of one motion frame so they can be buffered and applied together. During a stream validation session it is negative, encoded as `-(index + 1)`.
 - `Root` carries exactly one bone per frame, the first bone of the streamed rig, with its local scale. Every other bone arrives on `Bone`.
 - Positions and rotations are local transforms in Unity coordinates and meters, with no axis or unit conversion. Bone names are the transform names of the model loaded in MOVIN Studio; match bones by name, not by arrival order.
-- Wrist and finger bones are omitted when hand streaming is off in MOVIN Studio.
+- Finger bones are omitted when hand streaming is off in MOVIN Studio; wrists remain included.
 - `/MOVIN/StreamValidation/Begin` and `/MOVIN/StreamValidation/End` are control messages used by the diagnostic described under Stream Validation.
 
 **The stream is not VMC.** Earlier releases borrowed the `/VMC/Ext/Root/Pos` and `/VMC/Ext/Bone/Pos` address names for the same payload. MOVIN Studio `v3.2.0` and earlier stream on them. This plugin handles no `/VMC/...` address at all, so those Studio versions need plugin `v3.0.0` instead. Do not point a VMC application at this receiver or MOVIN Studio at a VMC receiver.
+
+## Point Cloud Reception
+
+Enable **Pointcloud** for the Unity target in MOVIN Studio. Motion and point cloud packets share the receiver's UDP port (`11235` by default); Unity does not need a second socket. `MOVINStreamReceiver` and `MocapReceiver` both expose `OnPointCloud`:
+
+```csharp
+receiver.OnPointCloud += (frame, points) => { /* consume the complete Vector3[] on Unity's main thread */ };
+```
+
+`/MOVIN/PointCloud` carries `(int frame, int totalPoints, int chunkIndex, int chunkCount, int pointsInChunk, float x, y, z, ...)`, with up to 100 points per chunk. Coordinates are already in Unity space; apply any scene placement separately. A zero-point frame delivers an empty array so consumers can clear their display.
+
+The receiver accepts reordered chunks, ignores duplicates, and publishes only the newest complete frame. It retains at most three frames, limits each to 1,000,000 points, and discards old/incomplete frames as newer frames progress. After one second without an accepted point cloud chunk, it resets frame ordering so a restarted Studio can resume. The callback supplies data only; no renderer is created or enabled automatically.
+
+Mapped bone/Transform names must be unique within the selected skeleton subtree. `MocapReceiver` reports duplicate names before building the map instead of silently animating only the last matching Transform.
 
 ## Frame Buffering and Drops
 
 MOVIN motion frames are buffered by frame index on the socket receive thread and applied from Unity's main thread in `Update()`.
 
 - `Socket FPS` is the incoming UDP packet rate.
-- `Input FPS` is the unique incoming motion frame rate.
+- `Input FPS` counts newly buffered motion frames; reordered bones in the same frame are counted once.
 - `Applied Frame FPS` is the unique motion frame rate applied to the avatar.
 - `maxBufferedFramesBeforeDrop` controls how many completed frames can wait before the receiver jumps to the latest completed frame.
-- The default drop threshold is `6`, which is about `0.1` seconds of buffered motion at a 60 FPS sender.
+- The default drop threshold is `6`, which is about `0.1` seconds of buffered motion at a 60 FPS sender. The receive thread retains at most the threshold plus one frame, even while Unity is paused. The supported threshold range is `1` to `120`; each frame accepts up to `1024` distinct bone names.
 - Dropped frames are shown in the monitor so slow rendering is visible instead of silently increasing latency.
+
+A sender restart can reset its frame counter. After one second without an accepted motion frame, the receiver clears its frame ordering baseline and accepts the new stream. Ordinary late packets before that timeout remain ignored. The current protocol has no session identifier, so this is timeout-based recovery; a sufficiently delayed packet after an idle period cannot be distinguished from a new session.
+
+A newer frame or 50 ms without a newer frame makes the current frame eligible for playback. UDP can still lose or reorder individual bone packets; this protocol does not declare the expected bone count or a frame-end marker. Monitor latency measures local buffering delay, not network end-to-end latency.
+
+Malformed OSC messages, unsupported argument types, non-finite pose values, and zero-length quaternions are rejected before application. OSC bundle nesting is limited to 16 levels. Unknown addresses are ignored on the receive thread; only validation End controls enter the main-thread queue, capped at 64 entries.
 
 ## Stream Validation
 
-The `Validation Logging` fields on the receiver, and the `Validation` row in the monitor, belong to a diagnostic MOVIN uses when tracing a stream problem. MOVIN Studio starts and stops the session, so leave these at their defaults and ignore them during normal use. Nothing is written unless MOVIN Studio asks for it. The session target must match the receiver's `Stream Target`.
+The `Validation Logging` fields on the receiver, and the `Validation` row in the monitor, belong to a diagnostic MOVIN uses when tracing a stream problem. MOVIN Studio starts and stops the session, so leave these at their defaults and ignore them during normal use. Nothing is written unless MOVIN Studio asks for it. The session target must match the receiver's `Stream Target` (case-insensitive for validation controls). Log headers use lowercase targets to match Studio.
 
 If MOVIN support requests logs, they are written under:
 
@@ -141,13 +172,15 @@ If MOVIN support requests logs, they are written under:
 Documents/MOVIN Studio/StreamValidation/Unity
 ```
 
+Set `Validation Log Directory` locally on the receiver to change the output folder. The directory sent in a UDP control packet is ignored. Session IDs accept only 1–64 ASCII letters, digits, underscores, and hyphens; existing log files are never overwritten. When Studio and Unity run on different machines, collect the plugin logs from the Unity machine. When they run on the same machine with a custom Studio log location, configure the receiver to use that location too.
+
 ## Breaking Changes
 
 Plugin `v3.3.0` breaks compatibility with `v3.0.0`. Every script now sits in a namespace, the receiver family no longer carries `VMC` in its name, and the stream moved to `/MOVIN/<target>/...` addresses. Prefabs and scenes reference scripts by GUID, so existing scenes and prefabs keep working after updating. Code that referenced the old names needs `using MOVIN;` and the renames below.
 
 | Before | After |
 |---|---|
-| `VMCReceiver` | `MOVIN.MotionStreamReceiver` |
+| `VMCReceiver` | `MOVIN.MOVINStreamReceiver` |
 | `MOVIN.Core.MocapReceiver` | `MOVIN.MocapReceiver` |
 | `VMCReceiverMonitorUI` | `MOVIN.MotionStreamMonitorUI` |
 | `VMCExampleLogger` | `MOVIN.MotionStreamExampleLogger` |
@@ -156,9 +189,59 @@ Plugin `v3.3.0` breaks compatibility with `v3.0.0`. Every script now sits in a n
 
 Removed: the VMC-only events `OnOk`, `OnTime`, `OnBlendShapeValue`, `OnBlendShapeApply`, `OnCamera`, `OnHmdPos`, `OnControllerPos`, `OnTrackerPos`, the `BlendshapeValues` dictionary, `OSCArgReader`, the unused `passthroughUnityCoordinates` option, and the root pose offset argument. `OnRootPose` now has the signature `(string name, Vector3 position, Quaternion rotation, Vector3? scale)`.
 
-The default port, the serialized receiver fields, and the frame buffering behavior are unchanged.
+The default port and existing serialized receiver fields are preserved. Frame storage is now bounded on receipt, and frame counters recover after the timeout described above.
 
 ## Troubleshooting
+
+### Streaming status in MOVIN Studio
+
+Studio queries the selected Unity receiver once per second, including before streaming starts.
+The plugin replies from the Unity main thread to Studio's shared UDP port `39581`; no Studio IP
+setting is needed in the plugin. Unity must be in Play mode and the receiver must be enabled.
+Studio shows `not connected` after three seconds without a valid reply. Streaming continues if
+status replies are unavailable, including with older plugins that do not implement this feature.
+
+The streaming message window uses this layout:
+
+```text
+Unity: connected
+
+Source: Ch14_nonPBR | 57 Bones
+Target: Ch14_nonPBR | 57 Bones
+Match: Name OK | Bone Count OK | Bone Names OK
+
+Received FPS: Motion 60.0 fps | Pointcloud 60.0 fps
+```
+
+Unknown values are `-`. Any `MISMATCH` adds a red reminder below Match to check that Studio and
+Unity use the same character model. Motion and point cloud FPS are green at 57 or above (95% of
+60 FPS), red below 57. Stopped, disabled, expired or wrong-sender data cannot display an old FPS.
+A plain `MOVINStreamReceiver` reports processing FPS but has no target character to compare.
+Point cloud FPS confirms complete-cloud delivery on the main thread, not rendering.
+
+For `MocapReceiver`, Studio also compares the sender and target **character names, full skeleton
+bone counts, and complete sets of bone names** independently. Both counts include the full skeleton,
+so disabling finger streaming does not produce a skeleton mismatch.
+Target counts exclude MOVIN bone/ joint drawing helpers. These are name-set comparisons, not checks
+of bind poses, hierarchy or mesh contents.
+
+Set **Character Name** on `MocapReceiver` to the imported model name shown by Studio. If blank, it
+uses the receiver GameObject's name with a trailing `(Clone)` removed. The MOVINMan prefab sets
+this to `MOVINMan`. Renaming the scene object can therefore be independent of the model label.
+Names are compared exactly, including case. The receiver reports its own skeleton independently
+of the packets received; a lost bone packet cannot make an incompatible skeleton appear to match.
+
+With automatic Root Bone Name, each change of streamed root name resolves the skeleton again,
+including after a character whose root was not found. Repeated frames with the same root reuse the
+mapping. This excludes avatar containers and sibling
+meshes (for example, Ch14 has 57 skeleton bones, not 59 transforms including its container and mesh).
+An explicitly configured Root Bone Name remains authoritative.
+
+Status uses `/MOVIN/Unity/Status/Request` (request token and reply port) and
+`/MOVIN/Unity/Status` (version 2). Replies echo a one-use request token, so delayed replies from a
+previous destination cannot restore stale status. This does not change motion or point cloud packets.
+
+### Common issues
 
 - No packets are shown in the monitor:
   Check the sender destination IP, UDP port `11235`, firewall rules, and whether another app is already using the same port.
@@ -168,8 +251,8 @@ The default port, the serialized receiver fields, and the frame buffering behavi
   The mapped bones stop short of the rest of the skeleton. `MocapReceiver` logs a warning naming every streamed bone it could not match, so check the Console and then set `Root Bone Name` to the top of your skeleton, for example `RootBone` or `Hips`.
 - Motion is delayed or frames are dropped:
   Check Unity performance, monitor `Pose Buffer` and `Dropped`, and tune `maxBufferedFramesBeforeDrop` if needed.
-- The Unity package is missing or tiny after cloning:
-  Run `git lfs install` and `git lfs pull`.
+- There is no `.unitypackage` in the checkout:
+  Download Core and optional Samples from GitHub Releases. Historical tags containing the old binary require Git LFS when cloning.
 
 ## Project Structure
 
@@ -186,8 +269,12 @@ Assets/
     Tests/
 Packages/
 ProjectSettings/
-MOVIN-Unity-Plugin-V3.unitypackage
+tools/                 # package generation and isolated Unity verification
+release.json           # version and export paths
+CHANGELOG.md
 ```
+
+Release maintenance is documented in [docs/releasing.md](docs/releasing.md).
 
 ## License
 

@@ -1,0 +1,45 @@
+name: Distribution
+
+on:
+  pull_request:
+    branches: [release]
+  push:
+    branches: [release, feature/movin-namespace]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test archive generation
+        run: python -m unittest discover -s tools -p 'test_*.py' -v
+      - name: Check release sources
+        run: python tools/package.py check
+      - name: Build and verify Core and Samples
+        run: python tools/package.py build --output dist
+      - name: Verify tag and clean source
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = json.loads(Path('dist/release-manifest.json').read_text())
+          assert not manifest['dirty'], 'Release source must be clean'
+          if os.environ['GITHUB_REF_TYPE'] == 'tag':
+              assert os.environ['GITHUB_REF_NAME'] == 'v' + manifest['version'], 'Tag/version mismatch'
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unity-packages-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0

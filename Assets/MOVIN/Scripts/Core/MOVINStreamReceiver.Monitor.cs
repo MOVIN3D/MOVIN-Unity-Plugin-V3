@@ -5,7 +5,7 @@ using MOVIN.OSC;
 
 namespace MOVIN
 {
-    public partial class MotionStreamReceiver
+    public partial class MOVINStreamReceiver
     {
         public struct MonitorSnapshot
         {
@@ -89,7 +89,6 @@ namespace MOVIN
                 _inputFramesReceived = 0;
                 _appliedFramesReceived = 0;
                 _droppedFrameCount = 0;
-                _lastInputFrameForMonitor = int.MinValue;
                 _lastAppliedFrameForMonitor = int.MinValue;
                 _lastDroppedFrameStart = int.MinValue;
                 _lastDroppedFrameEnd = int.MinValue;
@@ -122,11 +121,6 @@ namespace MOVIN
                 _lastWireFrame = wireFrame;
                 _lastFrame = frame;
 
-                if (frame != _lastInputFrameForMonitor)
-                {
-                    _lastInputFrameForMonitor = frame;
-                    _inputFramesReceived++;
-                }
             }
         }
 

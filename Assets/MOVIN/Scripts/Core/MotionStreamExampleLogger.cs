@@ -5,26 +5,26 @@ namespace MOVIN
 {
     /// <summary>
     /// Simple example: logs a few applied stream poses and shows how to subscribe.
-    /// Add this component alongside MotionStreamReceiver in your scene.
+    /// Add this component alongside MOVINStreamReceiver in your scene.
     /// </summary>
     public class MotionStreamExampleLogger : MonoBehaviour
     {
-        public MotionStreamReceiver receiver;
+        public MOVINStreamReceiver receiver;
 
         private Action<string, Vector3, Quaternion, Vector3?> _rootPoseHandler;
         private Action<string, Vector3, Quaternion> _bonePoseHandler;
 
         private void Reset()
         {
-            receiver = GetComponent<MotionStreamReceiver>();
+            receiver = GetComponent<MOVINStreamReceiver>();
             if (!receiver)
-                receiver = gameObject.AddComponent<MotionStreamReceiver>();
+                receiver = gameObject.AddComponent<MOVINStreamReceiver>();
         }
 
         private void OnEnable()
         {
             if (!receiver)
-                receiver = GetComponent<MotionStreamReceiver>();
+                receiver = GetComponent<MOVINStreamReceiver>();
             if (!receiver)
                 return;
 

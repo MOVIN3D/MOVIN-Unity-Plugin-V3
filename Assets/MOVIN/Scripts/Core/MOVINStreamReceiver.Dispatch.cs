@@ -3,7 +3,7 @@ using MOVIN.OSC;
 
 namespace MOVIN
 {
-    public partial class MotionStreamReceiver
+    public partial class MOVINStreamReceiver
     {
         public const string DefaultStreamTarget = "Unity";
         private const string AddressNamespace = "/MOVIN";
@@ -65,15 +65,6 @@ namespace MOVIN
                     return true;
                 }
 
-                if (msg.Args[0] is float f)
-                {
-                    frameIdx = Mathf.RoundToInt(f);
-                    if (Mathf.Approximately(f, frameIdx))
-                    {
-                        argOffset = 1;
-                        return true;
-                    }
-                }
             }
 
             frameIdx = 0;
@@ -88,7 +79,7 @@ namespace MOVIN
         /// </summary>
         private static int WireFrameToFrame(int wireFrame)
         {
-            return wireFrame < 0 ? -wireFrame - 1 : wireFrame;
+            return wireFrame < 0 ? -(wireFrame + 1) : wireFrame;
         }
     }
 }

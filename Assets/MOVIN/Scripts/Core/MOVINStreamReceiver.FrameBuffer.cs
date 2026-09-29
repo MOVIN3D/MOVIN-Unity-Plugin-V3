@@ -1,15 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Diagnostics;
+using Debug = UnityEngine.Debug;
 using UnityEngine;
 using MOVIN.OSC;
 
 namespace MOVIN
 {
-    public partial class MotionStreamReceiver
+    public partial class MOVINStreamReceiver
     {
         // A partially filled frame is treated as complete once this long passes with no newer
         // frame arriving, so playback is not stalled waiting on a dropped trailing packet.
         private const double FrameStalenessSeconds = 0.05;
+        // The wire format has no session id. Recover after one second without an accepted frame.
+        private const double StreamRestartSeconds = 1.0;
+        private const int MaxBonesPerFrame = 1024;
 
         protected class FramePose
         {
@@ -51,6 +57,10 @@ namespace MOVIN
                 }
                 else
                 {
+                    if (_bones.Count >= MaxBonesPerFrame)
+                    {
+                        throw new FormatException("Too many bones in a motion frame.");
+                    }
                     _boneIndices[name] = _bones.Count;
                     _bones.Add(bone);
                 }
@@ -83,6 +93,7 @@ namespace MOVIN
                 _latestCompleteFrame = int.MinValue;
                 _lastAppliedBufferedFrame = int.MinValue;
                 _currentBufferedFrameTicks = 0;
+                _lastAcceptedFrameTimestamp = 0;
             }
         }
 
@@ -136,7 +147,7 @@ namespace MOVIN
 
             var position = ReadVector3(msg, offset + 1);
             var rotation = ReadQuaternion(msg, offset + 4);
-            Vector3? scale = msg.Args.Length >= offset + 11 ? ReadVector3(msg, offset + 8) : null;
+            Vector3? scale = msg.Args.Length == offset + 11 ? ReadVector3(msg, offset + 8) : null;
 
             MarkPoseMessage(rootName, wireFrame);
             BufferRootPose(wireFrame, rootName, position, rotation, scale);
@@ -166,14 +177,31 @@ namespace MOVIN
 
             name = null;
             if (!TryReadFrameIndex(msg, out wireFrame, out offset)
-                || msg.Args.Length < offset + poseArgCount
-                || msg.Args[offset] is not string streamedName)
+                || (msg.Args.Length != offset + poseArgCount
+                    && !(IsRootAddress(msg.Address) && msg.Args.Length == offset + poseArgCount + 3))
+                || msg.Args[offset] is not string streamedName
+                || string.IsNullOrWhiteSpace(streamedName)
+                || streamedName.Length > 256)
             {
-                if (verboseLogging)
-                    Debug.Log($"Ignored motion message without a frame index or pose arguments: {msg.Address} {msg.Types}");
+                System.Threading.Interlocked.Increment(ref _processingErrors);
+                Debug.LogWarning($"Invalid motion frame header: {msg.Address} {msg.Types}");
                 return false;
             }
 
+            for (var i = offset + 1; i < msg.Args.Length; i++)
+            {
+                if (msg.Args[i] is not float value || float.IsNaN(value) || float.IsInfinity(value))
+                {
+                    throw new FormatException("Motion pose components must be finite OSC floats.");
+                }
+            }
+
+            var rotation = ReadQuaternion(msg, offset + 4);
+            var magnitudeSquared = Quaternion.Dot(rotation, rotation);
+            if (float.IsInfinity(magnitudeSquared) || magnitudeSquared < 0.000001f)
+            {
+                throw new FormatException("Motion rotation must be a nonzero finite quaternion.");
+            }
             name = streamedName;
             return true;
         }
@@ -209,9 +237,20 @@ namespace MOVIN
         private FramePose GetFrameForBufferLocked(int wireFrame)
         {
             var frame = WireFrameToFrame(wireFrame);
+            var now = Stopwatch.GetTimestamp();
+            if (_lastAcceptedFrameTimestamp != 0
+                && (now - _lastAcceptedFrameTimestamp) / (double)Stopwatch.Frequency >= StreamRestartSeconds)
+            {
+                ClearFrameBuffer();
+                lock (_monitorLock)
+                {
+                    _lastAppliedFrameForMonitor = int.MinValue;
+                }
+            }
             if (frame <= _lastAppliedBufferedFrame)
                 return null;
 
+            _lastAcceptedFrameTimestamp = now;
             if (_currentBufferedFrame == int.MinValue)
             {
                 _currentBufferedFrame = frame;
@@ -236,9 +275,22 @@ namespace MOVIN
             {
                 pose = new FramePose(wireFrame, frame);
                 _frameBuffer[frame] = pose;
+                lock (_monitorLock)
+                {
+                    _inputFramesReceived++;
+                }
+
+                // Keep at most the configured completed backlog plus the frame being received.
+                var limit = Mathf.Clamp(maxBufferedFramesBeforeDrop, 1, 120) + 1;
+                while (_frameBuffer.Count > limit)
+                {
+                    var oldest = _frameBuffer.Keys.Min();
+                    _frameBuffer.Remove(oldest);
+                    _lastAppliedBufferedFrame = Math.Max(_lastAppliedBufferedFrame, oldest);
+                }
             }
 
-            return pose;
+            return frame > _lastAppliedBufferedFrame ? pose : null;
         }
 
         private void ApplyBufferedFrameIfAvailable()
@@ -270,7 +322,7 @@ namespace MOVIN
                 }
 
                 var shouldDropToLatest = dropWhenPlaybackIsLagging
-                    && pendingCount >= Mathf.Max(1, maxBufferedFramesBeforeDrop);
+                    && pendingCount >= Mathf.Clamp(maxBufferedFramesBeforeDrop, 1, 120);
                 var frameNumber = shouldDropToLatest
                     ? latestFrame
                     : earliestFrame;
@@ -342,6 +394,9 @@ namespace MOVIN
             {
                 ApplyFramePose(frame);
                 MarkMonitorPoseApplied(frame);
+                _statusMotionFrame = frame.Frame;
+                _statusMotionAt = Stopwatch.GetTimestamp();
+                _statusMotionCount++;
             }
             finally
             {

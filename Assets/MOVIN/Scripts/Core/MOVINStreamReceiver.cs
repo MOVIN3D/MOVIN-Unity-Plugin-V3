@@ -10,16 +10,17 @@ using MOVIN.OSC;
 namespace MOVIN
 {
     /// <summary>
-    /// UDP receiver for the MOVIN Studio motion stream (OSC 1.0 encoded, no external packages).
+    /// UDP receiver for MOVIN Studio motion and point cloud streams (OSC 1.0, no external packages).
     /// - Listens on UDP (default 11235) and parses OSC messages and bundles.
     /// - Consumes /MOVIN/&lt;target&gt;/Root and /MOVIN/&lt;target&gt;/Bone, where the target segment
     ///   defaults to "Unity". Every motion message starts with an int frame index. Earlier releases
     ///   borrowed VMC address names; no /VMC address is handled any more and this is not a VMC
     ///   receiver.
+    /// - Receives /MOVIN/PointCloud chunks and publishes complete clouds on the main thread.
     /// - Thread-safe: the network thread buffers motion frames by frame index and the Unity main
     ///   thread applies one completed frame per Update().
     /// </summary>
-    public partial class MotionStreamReceiver : MonoBehaviour
+    public partial class MOVINStreamReceiver : MonoBehaviour
     {
         private const int TargetFrameRate = 120;
 
@@ -41,7 +42,7 @@ namespace MOVIN
 
         [Header("Playback")]
         [Tooltip("Drop to the latest completed motion frame when this many completed frames are waiting. 6 frames is about 0.1 seconds at a 60 FPS sender.")]
-        [Min(1)]
+        [Range(1, 120)]
         public int maxBufferedFramesBeforeDrop = 6;
 
         private Thread _thread;
@@ -57,13 +58,15 @@ namespace MOVIN
         private int _latestCompleteFrame = int.MinValue;
         private int _lastAppliedBufferedFrame = int.MinValue;
         private long _currentBufferedFrameTicks;
+        private long _lastAcceptedFrameTimestamp;
         private long _packetSequence;
         private static readonly object FrameRatePolicyLock = new object();
         private static int _frameRatePolicyRefCount;
         private static int _sharedPreviousTargetFrameRate;
         private static int _sharedPreviousVSyncCount;
         private bool _frameRatePolicyOverridden;
-        private bool _previousRunInBackground;
+        private static bool _previousRunInBackground;
+        private static int _runInBackgroundRefCount;
         private bool _runInBackgroundOverridden;
         private long _mainThreadFrames;
         private long _packetsReceived;
@@ -80,14 +83,13 @@ namespace MOVIN
         private string _lastPoseName = "";
         private int _lastWireFrame = int.MinValue;
         private int _lastFrame = int.MinValue;
-        private int _lastInputFrameForMonitor = int.MinValue;
         private int _lastAppliedFrameForMonitor = int.MinValue;
         private int _lastDroppedFrameStart = int.MinValue;
         private int _lastDroppedFrameEnd = int.MinValue;
         private double _lastPlaybackLatencyMs = -1.0;
         private int _currentDispatchFrame = int.MinValue;
 
-        // Messages the receive thread did not consume, processed on the main thread.
+        // Only validation End controls need main-thread processing; the queue is bounded.
         private readonly ConcurrentQueue<OSCMessage> _queue = new ConcurrentQueue<OSCMessage>();
 
         // --- Events you can subscribe to. Raised on the main thread when a buffered frame is applied. ---
