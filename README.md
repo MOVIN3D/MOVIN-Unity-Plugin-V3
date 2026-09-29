@@ -1,6 +1,13 @@
-# MOVIN Unity Plugin V3 v3.3.0 (MOVIN Studio v3.3.0+)
+# MOVIN Unity Plugin v3.3.0
 
-MOVIN Unity Plugin V3 is a Unity sample project and import package for receiving the MOVIN Studio motion stream over OSC/UDP, previewing streamed characters, and checking stream health in Unity.
+Receive MOVIN Studio motion and point clouds over OSC/UDP, animate Unity characters, and report
+receiver status, character compatibility and received FPS back to Studio. Requires MOVIN Studio
+`v3.3.0` or later.
+
+**v3.3.0 was refreshed on 2026-09-29.** The current Core package excludes internal Stream Validation
+code, settings, log capture and monitor rows. If you installed the initial v3.3.0 package, download
+the current files and follow [Update an Existing Installation](#update-an-existing-installation).
+The version number is unchanged; use the current release checksums to identify the package.
 
 ## Which Version Do I Need?
 
@@ -17,8 +24,9 @@ A plugin version names the lowest MOVIN Studio version it supports. A patch rele
 
 - **Core**: reusable motion/point-cloud receivers, Studio status replies and runtime monitor UI
 - **Samples**: MOVINman V3 and Mixamo characters with three URP sample scenes
-- Complete Unity sample project in this repository
-- Source regression tests and release tooling (not imported into users' projects)
+
+The repository also contains the complete sample project, regression tests and development tools.
+Tests, release tooling and internal Stream Validation are excluded from the user packages.
 
 ## Requirements
 
@@ -37,13 +45,22 @@ These are tested Editor versions, not a promise of compatibility with every Unit
 
 Download from [v3.3.0](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.3.0):
 
+| File | Purpose |
+|---|---|
+| [MOVIN-Unity-Plugin-Core-v3.3.0.unitypackage](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/download/v3.3.0/MOVIN-Unity-Plugin-Core-v3.3.0.unitypackage) | Required receiver scripts and monitor theme; import first |
+| [MOVIN-Unity-Plugin-Samples-v3.3.0.unitypackage](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/download/v3.3.0/MOVIN-Unity-Plugin-Samples-v3.3.0.unitypackage) | Optional sample characters and scenes; requires Core and URP |
+| `release-manifest.json`, `SHA256SUMS.txt` | Exported asset GUIDs, source commit and file checksums |
+| `verification.json`, `unity-verification.zip` | Installation and regression test results for these package hashes |
+
+Only the two `.unitypackage` files are imported into Unity. The manifest, checksums and test reports
+are release records; keep them outside `Assets`.
+
 1. Import `MOVIN-Unity-Plugin-Core-v3.3.0.unitypackage` through `Assets > Import Package > Custom Package...`.
 2. For your own character, add `MOVIN.MocapReceiver`; sample assets are optional.
 3. To use the sample characters/scenes, install URP and import `MOVIN-Unity-Plugin-Samples-v3.3.0.unitypackage` after Core. Use a URP project or configure its render pipeline first.
 
-Do not import the old all-in-one package after the new Core package. Generated packages are Release
-assets, not files maintained in the source checkout. SHA256SUMS.txt and release-manifest.json identify
-exactly what was exported. This is an asset-package distribution, not a UPM/Git URL package.
+Do not import the old all-in-one package after the new Core package. Download generated packages
+from GitHub Releases. Unity Package Manager installation via a Git URL is not supported.
 
 ### Open the Sample Project
 
@@ -57,22 +74,22 @@ old package binary; the current source project does not require it.
 
 ### Update an Existing Installation
 
-Back up or commit your Unity project before updating. When upgrading from 3.0.0, a namespace
-preview, or the initial 3.3.0 package, close Unity and move these folders **and their `.meta` files outside `Assets`**:
+These steps apply to v3.0.0, namespace previews and the initial v3.3.0 package:
 
-- `Assets/MOVIN/Scripts/Core`
-- `Assets/MOVIN/Tests` (if present)
+1. Back up or commit your Unity project, then close Unity.
+2. Move `Assets/MOVIN/Scripts/Core` **and `Assets/MOVIN/Scripts/Core.meta` outside `Assets`**.
+   Also move `Assets/MOVIN/Tests` and `Assets/MOVIN/Tests.meta` if present. Keep these backups and
+   any custom code. Leave your scenes, characters and prefabs in place.
+3. Reopen Unity and import the current Core package with all files selected before opening or
+   saving your scenes. Preserved script GUIDs retain the component links and serialized settings.
+4. Merge custom code back using the new API names. Do not restore obsolete receiver scripts or
+   `MOVINStreamReceiver.Validation.cs` and its `.meta` file from the backup.
+5. Import Samples only if you want to update the examples. Back up customized sample assets
+   outside their original package paths first, because importing Samples can overwrite them.
 
-Keep the backups, including custom code. Unity's package importer does not reliably rename old
-scripts: simply importing over them leaves duplicate files and can assign new GUIDs. The old
-bundled tests also reference removed VMC types. The initial 3.3.0 package contains an internal
-Validation file that must not be left behind when installing this refreshed package. Keep all existing scenes, characters and prefabs.
-
-Reopen Unity and import Core with all scripts and `.meta` files selected, before opening/saving
-your scenes. The original GUIDs then resolve to the new classes, retaining component references
-and serialized fields. Merge your custom code back from the backup using the new API names.
-Then import Samples only if you also want to update the shipped examples; keep customized copies
-of sample scenes/characters outside their original package paths.
+An overlay import cannot remove obsolete files. Old renamed scripts can cause duplicate GUIDs,
+and old tests or the initial v3.3.0 Validation source can cause compilation errors. After updating,
+`Assets/MOVIN/Scripts/Core/MOVINStreamReceiver.Validation.cs` must be absent.
 
 Custom C# code using old type or event names must follow the [Breaking Changes](#breaking-changes)
 table. Importing an asset package cannot rewrite your scripts. Use the new plugin together with
@@ -82,8 +99,8 @@ Studio 3.3.0+; retain plugin 3.0.0 for an older Studio installation.
 
 1. Open `Assets/MOVIN/Scenes/Sample_MOVINman.unity`.
 2. Enter Play Mode.
-3. In MOVIN Studio, set the Unity machine as the stream destination.
-4. Set the destination port to `11235`, the port the receiver listens on by default.
+3. In MOVIN Studio, select the Unity target and MOVINMan source, then set the Unity machine's IPv4 address as the destination (`127.0.0.1` when both apps run on the same computer).
+4. Set the destination port to `11235`, enable Motion, and click Start Streaming.
 5. If packets do not arrive, allow inbound UDP traffic for Unity on port `11235` in the firewall.
 6. Check the on-screen `MOVIN Receiver` monitor for packet rate, applied frames, dropped frames, and latency.
 
@@ -172,12 +189,6 @@ A newer frame or 50 ms without a newer frame makes the current frame eligible fo
 
 Malformed OSC messages, unsupported argument types, non-finite pose values, and zero-length quaternions are rejected before application. OSC bundle nesting is limited to 16 levels. Unknown addresses, including internal Stream Validation controls, are ignored on the receive thread in user packages.
 
-## Internal Stream Validation
-
-User Core packages exclude Stream Validation logging, controls, Inspector settings and monitor rows.
-Motion, point clouds and Studio status/FPS do not require this internal diagnostic. Developers using
-the full repository can enable it as described in [docs/internal-validation.md](docs/internal-validation.md).
-
 ## Breaking Changes
 
 Plugin `v3.3.0` breaks compatibility with `v3.0.0`. Every script now sits in a namespace, the receiver family no longer carries `VMC` in its name, and the stream moved to `/MOVIN/<target>/...` addresses. Follow the upgrade steps above to preserve script GUIDs and existing scene/prefab references. Code that referenced the old names needs `using MOVIN;` and the renames below.
@@ -250,7 +261,7 @@ previous destination cannot restore stale status. This does not change motion or
 - No packets are shown in the monitor:
   Check the sender destination IP, UDP port `11235`, firewall rules, and whether another app is already using the same port.
 - Packets arrive but the character does not move:
-  Confirm that `MocapReceiver` is on the character root, that `Stream Target` matches the target MOVIN Studio streams to, that the streamed bone names match the Unity hierarchy, and that `Root Bone Name` is set only when needed. Enable `Verbose Logging` to see every incoming address in the Console. Addresses starting with `/VMC/` mean MOVIN Studio is `v3.2.0` or earlier: update MOVIN Studio to `v3.3.0` or use plugin `v3.0.0`.
+  Confirm that `MocapReceiver` is on the character root, that `Stream Target` matches the target MOVIN Studio streams to, that the streamed bone names match the Unity hierarchy, and that `Root Bone Name` is set only when needed. Check the Studio version: Studio `v3.2.0` and earlier require plugin `v3.0.0` because they send legacy `/VMC/` addresses.
 - Only part of the character moves, such as the upper body:
   The mapped bones stop short of the rest of the skeleton. `MocapReceiver` logs a warning naming every streamed bone it could not match, so check the Console and then set `Root Bone Name` to the top of your skeleton, for example `RootBone` or `Hips`.
 - Motion is delayed or frames are dropped:
@@ -274,11 +285,23 @@ Assets/
 Packages/
 ProjectSettings/
 tools/                 # package generation and isolated Unity verification
+docs/                  # release maintenance and internal diagnostics
 release.json           # version and export paths
 CHANGELOG.md
 ```
 
-Release maintenance is documented in [docs/releasing.md](docs/releasing.md).
+## Development
+
+Release maintenance is documented in [docs/releasing.md](docs/releasing.md). The attached release
+reports cover Core-only imports, fresh Core/Samples installs, v3.0.0 upgrades and initial v3.3.0
+refreshes in the two Editor versions listed above. Standalone Player/IL2CPP and cross-machine
+firewall configurations were not tested in this release run.
+
+Stream Validation is an internal development tool, disabled by default even in the repository's
+Unity Editor project. To use it, work from the complete source checkout and follow
+[docs/internal-validation.md](docs/internal-validation.md). Its `MOVIN_STREAM_VALIDATION` symbol
+must not be enabled in a user package installation, which does not include the required source.
+Motion, point clouds and Studio status/FPS work without this diagnostic.
 
 ## License
 
