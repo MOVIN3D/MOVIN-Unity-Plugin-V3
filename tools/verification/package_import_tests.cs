@@ -34,13 +34,16 @@ public class package_import_tests{
             foreach (var obj in objects){
                 Assert.That(GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(obj), Is.Zero, obj.name);
             }
-            Assert.That(objects.SelectMany(o => o.GetComponents<MOVINStreamReceiver>()).Count(), Is.EqualTo(2));
+            Assert.That(objects.SelectMany(o => o.GetComponents<MOVINStreamReceiver>()).Count(), Is.EqualTo(3));
             Assert.That(objects.SelectMany(o => o.GetComponents<MocapReceiver>()).Count(), Is.EqualTo(1));
             Assert.That(objects.SelectMany(o => o.GetComponents<MotionStreamMonitorUI>()).Count(), Is.EqualTo(1));
             Assert.That(objects.SelectMany(o => o.GetComponents<MotionStreamExampleLogger>()).Count(), Is.EqualTo(1));
             foreach (var receiver in objects.SelectMany(o => o.GetComponents<MOVINStreamReceiver>())){
-                Assert.That(receiver.listenPort, Is.EqualTo(12345));
+                var expected_port = receiver.gameObject.name == "VMCExampleLogger" ? 11235 : 12345;
+                Assert.That(receiver.listenPort, Is.EqualTo(expected_port));
             }
+            var logger = objects.SelectMany(o => o.GetComponents<MotionStreamExampleLogger>()).Single();
+            Assert.That(logger.receiver, Is.SameAs(logger.GetComponent<MOVINStreamReceiver>()));
             Assert.That(AssetDatabase.FindAssets("VMCReceiver t:MonoScript"), Is.Empty);
         }
         else{
