@@ -4,6 +4,7 @@
   "unity_versions": ["6000.0.43f1", "6000.4.10f1"],
   "sample_unity": "6000.4.10f1",
   "sample_urp": "17.4.0",
+  "excluded_assets": ["Assets/MOVIN/Scripts/Core/MOVINStreamReceiver.Validation.cs"],
   "packages": {
     "Core": ["Assets/MOVIN/Scripts", "Assets/MOVIN/Resources"],
     "Samples": ["Assets/MOVIN/Character", "Assets/MOVIN/Scenes", "Assets/Settings/SampleSceneProfile.asset"]

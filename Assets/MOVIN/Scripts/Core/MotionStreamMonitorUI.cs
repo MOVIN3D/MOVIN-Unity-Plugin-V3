@@ -57,10 +57,14 @@ namespace MOVIN
         private Label _packetAge;
         private Label _playbackLatency;
         private Label _buffer;
+#if MOVIN_STREAM_VALIDATION
         private Label _queue;
+#endif
         private Label _processingErrors;
+#if MOVIN_STREAM_VALIDATION
         private Label _validation;
         private Label _session;
+#endif
         private Label _packets;
         private Label _messages;
         private Label _dispatch;
@@ -68,7 +72,9 @@ namespace MOVIN
         private Label _lastAddress;
         private Label _lastPose;
         private Label _background;
+#if MOVIN_STREAM_VALIDATION
         private Label _logPath;
+#endif
         private readonly List<VisualElement> _rows = new List<VisualElement>();
         private readonly List<Label> _rowLabels = new List<Label>();
         private readonly List<VisualElement> _dividers = new List<VisualElement>();
@@ -296,11 +302,15 @@ namespace MOVIN
             _playbackLatency = AddRow("Playback Latency");
             _dropped = AddRow("Dropped");
             AddSectionDivider();
+#if MOVIN_STREAM_VALIDATION
             _queue = AddRow("Main Msg Queue");
+#endif
             _processingErrors = AddRow("Processing Error");
+#if MOVIN_STREAM_VALIDATION
             AddSectionDivider();
             _validation = AddRow("Validation");
             _session = AddRow("Session");
+#endif
         }
 
         private void BuildDebugRows()
@@ -313,8 +323,10 @@ namespace MOVIN
             _lastAddress = AddRow("Last OSC");
             _lastPose = AddRow("Last pose");
             _background = AddRow("Background");
+#if MOVIN_STREAM_VALIDATION
             _logPath = AddRow("Log");
             _logPath.style.whiteSpace = WhiteSpace.Normal;
+#endif
         }
 
         private void AddDebugTitle()
@@ -524,10 +536,14 @@ namespace MOVIN
                 _playbackLatency.text = "-";
                 _buffer.text = "-";
                 _packetAge.text = "-";
+#if MOVIN_STREAM_VALIDATION
                 _queue.text = "-";
+#endif
                 _processingErrors.text = "-";
+#if MOVIN_STREAM_VALIDATION
                 _validation.text = "-";
                 _session.text = "-";
+#endif
                 if (showDebugDetails)
                 {
                     _packets.text = "-";
@@ -537,13 +553,17 @@ namespace MOVIN
                     _lastAddress.text = "-";
                     _lastPose.text = "-";
                     _background.text = "-";
+#if MOVIN_STREAM_VALIDATION
                     _logPath.text = "-";
+#endif
                 }
                 return;
             }
 
             var snapshot = receiver.GetMonitorSnapshot();
+#if MOVIN_STREAM_VALIDATION
             var privateDiagnostics = receiver.GetPrivateDiagnosticsSnapshot();
+#endif
             var packetAgeSeconds = SecondsSince(snapshot.LastPacketUtcTicks);
 
             UpdateRates(snapshot);
@@ -562,14 +582,18 @@ namespace MOVIN
             _playbackLatency.text = FormatLatency(snapshot.PlaybackLatencyMs);
             _buffer.text = snapshot.BufferedFrameCount == 0 ? "OK" : $"{snapshot.BufferedFrameCount} frames";
             _packetAge.text = FormatAge(packetAgeSeconds);
+#if MOVIN_STREAM_VALIDATION
             _queue.text = snapshot.QueuedMessages == 0 ? "0 pending" : $"{snapshot.QueuedMessages} pending";
+#endif
             _processingErrors.text = snapshot.ProcessingErrors == 0 ? "0 errors" : $"{snapshot.ProcessingErrors} errors";
+#if MOVIN_STREAM_VALIDATION
             _validation.text = privateDiagnostics.ValidationLogOpen
                 ? "logging"
                 : (privateDiagnostics.ValidationLoggingEnabled ? "idle" : "off");
             _session.text = string.IsNullOrWhiteSpace(privateDiagnostics.ValidationSessionId) ? "-" : privateDiagnostics.ValidationSessionId;
             if (_session.parent != null)
                 _session.parent.style.display = privateDiagnostics.ValidationLogOpen ? DisplayStyle.Flex : DisplayStyle.None;
+#endif
 
             if (showDebugDetails)
             {
@@ -582,7 +606,9 @@ namespace MOVIN
                 _background.text = snapshot.ForceRunInBackground
                     ? $"forced {(snapshot.ApplicationRunInBackground ? "on" : "off")}"
                     : $"app {(snapshot.ApplicationRunInBackground ? "on" : "off")}";
+#if MOVIN_STREAM_VALIDATION
                 _logPath.text = string.IsNullOrWhiteSpace(privateDiagnostics.ValidationLogPath) ? "-" : privateDiagnostics.ValidationLogPath;
+#endif
             }
         }
 
@@ -729,10 +755,14 @@ namespace MOVIN
                 && _playbackLatency != null
                 && _buffer != null
                 && _packetAge != null
+#if MOVIN_STREAM_VALIDATION
                 && _queue != null
+#endif
                 && _processingErrors != null
+#if MOVIN_STREAM_VALIDATION
                 && _validation != null
                 && _session != null
+#endif
                 && (!showDebugDetails
                     || (_packets != null
                         && _messages != null
@@ -741,7 +771,10 @@ namespace MOVIN
                         && _lastAddress != null
                         && _lastPose != null
                         && _background != null
-                        && _logPath != null));
+#if MOVIN_STREAM_VALIDATION
+                        && _logPath != null
+#endif
+                        ));
         }
     }
 }

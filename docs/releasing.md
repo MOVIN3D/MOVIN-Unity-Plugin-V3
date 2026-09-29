@@ -4,6 +4,10 @@
 `Package validation` check. Released versions are immutable by policy: never retarget a published
 tag or replace its files. Fixes get a new patch version. Keep older releases available.
 
+Exception: the maintainer explicitly requested refreshing v3.3.0 on 2026-09-29 to remove internal
+Stream Validation. The original release metadata, tag and files are backed up locally. The release
+notes identify the reissue and new checksums. This is not the default policy for future releases.
+
 `release.json` owns the version and export paths. Update it, README, Assets/Readme.asset and
 CHANGELOG together. A plugin patch (for example 3.3.1) does not require Studio 3.3.1; record the
 supported Studio range separately. List verified Unity versions rather than promising every
@@ -26,6 +30,8 @@ python tools/package.py verify --output dist
 Core includes scripts and UI theme resources. Samples includes characters, scenes and the scene
 volume profile. Test scripts, project settings and development tooling are never exported. Sample
 scenes still require URP; importing Samples does not replace a user's render-pipeline settings.
+The `excluded_assets` list also removes the internal Validation source and its metadata. Internal
+builds use the full repository and `MOVIN_STREAM_VALIDATION`; user packages keep that feature disabled.
 
 The generated manifest records commit SHA, dirty state, source asset hashes, GUIDs and package
 hashes. Only artifacts with `dirty: false` from the intended release commit may be published.
@@ -40,6 +46,8 @@ imports Core and Samples then runs the receiver and asset-reference tests; `upgr
 3.0.0 package first, creates a scene using the old components, backs up the old Core and Tests folders
 and their metadata outside Assets (as required by the user upgrade instructions), then imports the new packages and
 checks that the saved scene and script GUIDs survive.
+`refresh` follows the same procedure starting from a previous Core package, including the initial
+3.3.0 package. Pass its Core file as `-legacy` to verify removal of old internal validation code.
 
 ```powershell
 ./tools/verify-unity.ps1 -unity 'C:/Program Files/Unity/Hub/Editor/6000.4.10f1/Editor/Unity.exe' -workspace 'D:/Verification/movin-3.3.0-core' -artifacts ./dist -mode core -legacy ''

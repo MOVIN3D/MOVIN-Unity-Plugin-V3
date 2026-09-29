@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -380,7 +380,9 @@ namespace MOVIN
             if (localScale.HasValue)
                 boneTransform.localScale = localScale.Value;
 
+#if MOVIN_STREAM_VALIDATION
             CapturePrivateAppliedPose(boneName, boneTransform, includeScale);
+#endif
         }
     }
 }

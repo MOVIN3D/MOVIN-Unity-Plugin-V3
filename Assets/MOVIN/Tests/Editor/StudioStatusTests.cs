@@ -28,7 +28,9 @@ namespace MOVIN.Tests
             _receiver = _object.AddComponent<MOVINStreamReceiver>();
             _receiver.bindAddress = "127.0.0.1";
             _receiver.listenPort = 0;
+#if MOVIN_STREAM_VALIDATION
             _receiver.validationLogging = false;
+#endif
             _receiver.StartReceiver();
             _destination = (IPEndPoint)((UdpClient)Get("_udp")).Client.LocalEndPoint;
             _sender = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
@@ -125,7 +127,9 @@ namespace MOVIN.Tests
             typeof(MocapReceiver).GetMethod("BuildFrom", Flags).Invoke(_receiver, new object[] { _object.transform });
             _receiver.bindAddress = "127.0.0.1";
             _receiver.listenPort = 0;
+#if MOVIN_STREAM_VALIDATION
             _receiver.validationLogging = false;
+#endif
             _receiver.StartReceiver();
             _destination = (IPEndPoint)((UdpClient)Get("_udp")).Client.LocalEndPoint;
             Send("/MOVIN/Unity/Root", ",isffffffffff", 10, "Root", 0f, 0f, 0f, 0f, 0f, 0f, 1f, 1f, 1f, 1f);

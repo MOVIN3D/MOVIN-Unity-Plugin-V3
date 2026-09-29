@@ -5972,9 +5972,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5390cdb2ad3f2a843b33049872e80a29, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MOVIN.MocapReceiver
-  validationLogging: 1
-  validationLogDirectory: 
-  validationSessionId: 
   listenPort: 11235
   bindAddress: 
   verboseLogging: 0

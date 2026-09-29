@@ -7,6 +7,20 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 public class package_import_tests{
+#if !MOVIN_STREAM_VALIDATION
+    [Test]
+    public void customer_core_has_no_validation_features(){
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+        Assert.That(File.Exists("Assets/MOVIN/Scripts/Core/MOVINStreamReceiver.Validation.cs"), Is.False);
+        foreach (var name in new[]{"validationLogging", "validationLogDirectory", "validationSessionId", "_validationWriter", "_queue"}){
+            Assert.That(typeof(MOVINStreamReceiver).GetField(name, flags), Is.Null, name);
+        }
+        Assert.That(typeof(MOVINStreamReceiver).GetMethod("GetPrivateDiagnosticsSnapshot", flags), Is.Null);
+        foreach (var name in new[]{"_validation", "_session", "_logPath", "_queue"}){
+            Assert.That(typeof(MotionStreamMonitorUI).GetField(name, flags), Is.Null, name);
+        }
+    }
+#endif
     [Test]
     public void sample_scenes_have_no_missing_scripts(){
         foreach (var path in Directory.GetFiles("Assets/MOVIN/Scenes", "*.unity")){
@@ -39,7 +53,7 @@ public class package_import_tests{
             Assert.That(objects.SelectMany(o => o.GetComponents<MotionStreamMonitorUI>()).Count(), Is.EqualTo(1));
             Assert.That(objects.SelectMany(o => o.GetComponents<MotionStreamExampleLogger>()).Count(), Is.EqualTo(1));
             foreach (var receiver in objects.SelectMany(o => o.GetComponents<MOVINStreamReceiver>())){
-                var expected_port = receiver.gameObject.name == "VMCExampleLogger" ? 11235 : 12345;
+                var expected_port = receiver.GetComponent<MotionStreamExampleLogger>() != null ? 11235 : 12345;
                 Assert.That(receiver.listenPort, Is.EqualTo(expected_port));
             }
             var logger = objects.SelectMany(o => o.GetComponents<MotionStreamExampleLogger>()).Single();

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -64,10 +64,14 @@ namespace MOVIN
             {
                 _thread = null;
             }
+#if MOVIN_STREAM_VALIDATION
             while (_queue.TryDequeue(out _)) { }
+#endif
             ClearFrameBuffer();
             ClearPointCloudBuffer();
+#if MOVIN_STREAM_VALIDATION
             OnPrivateReceiverStopping();
+#endif
             RestoreRunInBackgroundOverride();
             RestoreAppFrameRatePolicy();
         }
@@ -144,15 +148,19 @@ namespace MOVIN
                 try
                 {
                     var data = udp.Receive(ref _remoteAny);
+#if MOVIN_STREAM_VALIDATION
                     var packetSequence = Interlocked.Increment(ref _packetSequence);
+#endif
                     Interlocked.Increment(ref _packetsReceived);
                     Interlocked.Exchange(ref _lastPacketUtcTicks, DateTime.UtcNow.Ticks);
                     OSCParser.ParsePacket(data, 0, data.Length, (msg) =>
                     {
                         if (!_running) return;
+#if MOVIN_STREAM_VALIDATION
                         msg.PacketData = data;
                         msg.PacketLength = data.Length;
                         msg.PacketSequence = packetSequence;
+#endif
                         MarkMessageReceived(msg);
                         try
                         {
@@ -160,14 +168,18 @@ namespace MOVIN
                             {
                                 MarkMessageDispatched();
                             }
+#if MOVIN_STREAM_VALIDATION
                             else if (TryHandlePrivateReceiveThreadControlMessage(msg))
                             {
                                 MarkMessageDispatched();
                             }
+#endif
                             else if (TryBufferMotionMessage(msg))
                             {
                                 lock (_statusLock) { _motionSource = _remoteAny; }
+#if MOVIN_STREAM_VALIDATION
                                 RecordPrivateRawPacket(msg);
+#endif
                                 MarkMessageDispatched();
                             }
                             else if (TryBufferPointCloudMessage(msg))
@@ -175,6 +187,7 @@ namespace MOVIN
                                 lock (_statusLock) { _cloudSource = _remoteAny; }
                                 MarkMessageDispatched();
                             }
+#if MOVIN_STREAM_VALIDATION
                             else if (validationLogging && msg.Address == ValidationEndAddress)
                             {
                                 if (_queue.Count >= 64)
@@ -183,6 +196,7 @@ namespace MOVIN
                                 }
                                 _queue.Enqueue(msg);
                             }
+#endif
                         }
                         catch (Exception ex)
                         {
@@ -209,6 +223,7 @@ namespace MOVIN
         {
             Interlocked.Increment(ref _mainThreadFrames);
 
+#if MOVIN_STREAM_VALIDATION
             int safety = 10000; // process up to N msgs per frame to avoid stalls
             while (safety-- > 0 && _queue.TryDequeue(out var msg))
             {
@@ -223,6 +238,7 @@ namespace MOVIN
                     Debug.LogWarning($"Dispatch error for {msg.Address}: {ex.Message}");
                 }
             }
+#endif
 
             ApplyBufferedFrameIfAvailable();
             ApplyPointCloudIfAvailable();

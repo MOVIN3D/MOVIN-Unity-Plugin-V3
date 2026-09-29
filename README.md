@@ -57,15 +57,16 @@ old package binary; the current source project does not require it.
 
 ### Update an Existing Installation
 
-Back up or commit your Unity project before updating. When upgrading from 3.0.0 or a namespace
-preview, close Unity and move these folders **and their `.meta` files outside `Assets`**:
+Back up or commit your Unity project before updating. When upgrading from 3.0.0, a namespace
+preview, or the initial 3.3.0 package, close Unity and move these folders **and their `.meta` files outside `Assets`**:
 
 - `Assets/MOVIN/Scripts/Core`
 - `Assets/MOVIN/Tests` (if present)
 
 Keep the backups, including custom code. Unity's package importer does not reliably rename old
 scripts: simply importing over them leaves duplicate files and can assign new GUIDs. The old
-bundled tests also reference removed VMC types. Keep all existing scenes, characters and prefabs.
+bundled tests also reference removed VMC types. The initial 3.3.0 package contains an internal
+Validation file that must not be left behind when installing this refreshed package. Keep all existing scenes, characters and prefabs.
 
 Reopen Unity and import Core with all scripts and `.meta` files selected, before opening/saving
 your scenes. The original GUIDs then resolve to the new classes, retaining component references
@@ -118,7 +119,7 @@ Every runtime script lives in the `MOVIN` namespace, and the low-level OSC parse
 - `MOVIN.MocapReceiver`
   Extends `MOVINStreamReceiver`. Applies streamed root and bone poses to a Unity character hierarchy, and scales `<bone>BoneObject` helper meshes on rigs that draw their bones as meshes.
 - `MOVIN.MotionStreamMonitorUI`
-  Runtime monitor for socket FPS, input FPS, applied frame FPS, frame drops, playback latency, queue size, processing errors, and validation state.
+  Runtime monitor for socket FPS, input FPS, applied frame FPS, frame drops, playback latency, processing errors and stream health.
 - `MOVIN.MotionStreamExampleLogger`
   Minimal example that subscribes to the receiver events and logs a few of them.
 - `MOVIN.OSC.OSCMessage`, `MOVIN.OSC.OSCParser`
@@ -133,11 +134,10 @@ MOVIN Studio streams motion as OSC 1.0 messages over UDP, one message per bone p
 
 The default target is `Unity`, so a stock receiver listens on `/MOVIN/Unity/Root` and `/MOVIN/Unity/Bone`. Change `Stream Target` on the receiver when MOVIN Studio streams to another target.
 
-- `frame` is a monotonically increasing frame index that groups the messages of one motion frame so they can be buffered and applied together. During a stream validation session it is negative, encoded as `-(index + 1)`.
+- `frame` is a monotonically increasing frame index that groups the messages of one motion frame so they can be buffered and applied together.
 - `Root` carries exactly one bone per frame, the first bone of the streamed rig, with its local scale. Every other bone arrives on `Bone`.
 - Positions and rotations are local transforms in Unity coordinates and meters, with no axis or unit conversion. Bone names are the transform names of the model loaded in MOVIN Studio; match bones by name, not by arrival order.
 - Finger bones are omitted when hand streaming is off in MOVIN Studio; wrists remain included.
-- `/MOVIN/StreamValidation/Begin` and `/MOVIN/StreamValidation/End` are control messages used by the diagnostic described under Stream Validation.
 
 **The stream is not VMC.** Earlier releases borrowed the `/VMC/Ext/Root/Pos` and `/VMC/Ext/Bone/Pos` address names for the same payload. MOVIN Studio `v3.2.0` and earlier stream on them. This plugin handles no `/VMC/...` address at all, so those Studio versions need plugin `v3.0.0` instead. Do not point a VMC application at this receiver or MOVIN Studio at a VMC receiver.
 
@@ -170,19 +170,13 @@ A sender restart can reset its frame counter. After one second without an accept
 
 A newer frame or 50 ms without a newer frame makes the current frame eligible for playback. UDP can still lose or reorder individual bone packets; this protocol does not declare the expected bone count or a frame-end marker. Monitor latency measures local buffering delay, not network end-to-end latency.
 
-Malformed OSC messages, unsupported argument types, non-finite pose values, and zero-length quaternions are rejected before application. OSC bundle nesting is limited to 16 levels. Unknown addresses are ignored on the receive thread; only validation End controls enter the main-thread queue, capped at 64 entries.
+Malformed OSC messages, unsupported argument types, non-finite pose values, and zero-length quaternions are rejected before application. OSC bundle nesting is limited to 16 levels. Unknown addresses, including internal Stream Validation controls, are ignored on the receive thread in user packages.
 
-## Stream Validation
+## Internal Stream Validation
 
-The `Validation Logging` fields on the receiver, and the `Validation` row in the monitor, belong to a diagnostic MOVIN uses when tracing a stream problem. MOVIN Studio starts and stops the session, so leave these at their defaults and ignore them during normal use. Nothing is written unless MOVIN Studio asks for it. The session target must match the receiver's `Stream Target` (case-insensitive for validation controls). Log headers use lowercase targets to match Studio.
-
-If MOVIN support requests logs, they are written under:
-
-```text
-Documents/MOVIN Studio/StreamValidation/Unity
-```
-
-Set `Validation Log Directory` locally on the receiver to change the output folder. The directory sent in a UDP control packet is ignored. Session IDs accept only 1–64 ASCII letters, digits, underscores, and hyphens; existing log files are never overwritten. When Studio and Unity run on different machines, collect the plugin logs from the Unity machine. When they run on the same machine with a custom Studio log location, configure the receiver to use that location too.
+User Core packages exclude Stream Validation logging, controls, Inspector settings and monitor rows.
+Motion, point clouds and Studio status/FPS do not require this internal diagnostic. Developers using
+the full repository can enable it as described in [docs/internal-validation.md](docs/internal-validation.md).
 
 ## Breaking Changes
 

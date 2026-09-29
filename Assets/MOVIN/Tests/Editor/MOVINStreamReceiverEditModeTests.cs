@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.IO;
 using System.Reflection;
@@ -197,6 +197,7 @@ namespace MOVIN.Tests
             }
         }
 
+#if MOVIN_STREAM_VALIDATION
         [Test]
         public void ValidationBeginAndEndPacketsParseExpectedFields()
         {
@@ -361,6 +362,7 @@ namespace MOVIN.Tests
             Assert.That(InvokeStatic("ValidationFloat", 1.2345678f), Is.EqualTo("1.234568"));
             Assert.That(InvokeStatic("ValidationFloat", -0.0000004f), Is.EqualTo("0.000000"));
         }
+#endif
 
         [Test]
         public void FrameBufferKeepsPlaybackOrderWhenBacklogIsBelowDropThreshold()
@@ -526,6 +528,7 @@ namespace MOVIN.Tests
             finally { UnityEngine.Object.DestroyImmediate(go); }
         }
 
+#if MOVIN_STREAM_VALIDATION
         [TestCase("../outside")]
         [TestCase("..\\outside")]
         [TestCase("C:/outside")]
@@ -568,6 +571,7 @@ namespace MOVIN.Tests
                 DeleteTempDirectory(directory);
             }
         }
+#endif
 
         [Test]
         public void MultipleReceiversRestoreBackgroundSettingAfterLastStops()
@@ -643,7 +647,9 @@ namespace MOVIN.Tests
             var receiver = go.AddComponent<MOVINStreamReceiver>();
             receiver.listenPort = 0;
             receiver.bindAddress = "127.0.0.1";
+#if MOVIN_STREAM_VALIDATION
             receiver.validationLogging = false;
+#endif
             try
             {
                 receiver.StartReceiver();

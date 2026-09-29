@@ -28,11 +28,11 @@ MonoBehaviour:
     linkText:
     url:
   - heading: Receiver Components
-    text: MOVINStreamReceiver receives MOVIN Studio motion and point clouds over OSC/UDP. MOVIN.MocapReceiver applies streamed root and bone poses to a character hierarchy. MotionStreamMonitorUI shows packet, frame, drop, latency, and validation status at runtime.
+    text: MOVINStreamReceiver receives MOVIN Studio motion and point clouds over OSC/UDP. MOVIN.MocapReceiver applies streamed root and bone poses to a character hierarchy. MotionStreamMonitorUI shows packet, frame, drop, latency, and processing status at runtime.
     linkText:
     url:
-  - heading: Validation Logs
-    text: Validation logs default to Documents/MOVIN Studio/StreamValidation/Unity unless Validation Log Directory is set on the receiver.
+  - heading: Studio Status
+    text: The receiver reports character identity, bone compatibility, and received FPS to MOVIN Studio automatically.
     linkText:
     url:
   - heading: Downloads and Compatibility
