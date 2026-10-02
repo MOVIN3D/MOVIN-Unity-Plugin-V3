@@ -16,7 +16,7 @@ MonoBehaviour:
   title: MOVIN Unity Plugin V3
   sections:
   - heading: Overview
-    text: MOVIN Unity Plugin v3.3.1 receives motion, point clouds, and status requests from MOVIN Studio v3.3.0 or later over OSC/UDP.
+    text: MOVIN Unity Plugin v3.3.0 receives motion, point clouds, and status requests from MOVIN Studio v3.3.0 or later over OSC/UDP.
     linkText:
     url:
   - heading: Quick Start

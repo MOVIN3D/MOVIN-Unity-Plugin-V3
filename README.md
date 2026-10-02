@@ -1,11 +1,12 @@
-# MOVIN Unity Plugin v3.3.1
+# MOVIN Unity Plugin v3.3.0
 
 Receive MOVIN Studio motion and point clouds over OSC/UDP, animate Unity characters, and report
 receiver status, character compatibility and received FPS back to Studio. Requires MOVIN Studio
 `v3.3.0` or later.
 
-**v3.3.1 fixes sender isolation and received FPS reporting.** It supports the same Studio versions
-as v3.3.0. See [Update an Existing Installation](#update-an-existing-installation) before importing.
+**v3.3.0 was refreshed on 2026-10-02** to fix sender isolation and received FPS reporting.
+The version is unchanged; use the current release checksums to identify this build.
+See [Update an Existing Installation](#update-an-existing-installation) before importing.
 
 ## Which Version Do I Need?
 
@@ -41,21 +42,21 @@ These are tested Editor versions, not a promise of compatibility with every Unit
 
 ### Import into Your Project
 
-Download from [v3.3.1](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.3.1):
+Download from [v3.3.0](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.3.0):
 
 | File | Purpose |
 |---|---|
-| [MOVIN-Unity-Plugin-Core-v3.3.1.unitypackage](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/download/v3.3.1/MOVIN-Unity-Plugin-Core-v3.3.1.unitypackage) | Required receiver scripts and monitor theme; import first |
-| [MOVIN-Unity-Plugin-Samples-v3.3.1.unitypackage](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/download/v3.3.1/MOVIN-Unity-Plugin-Samples-v3.3.1.unitypackage) | Optional sample characters and scenes; requires Core and URP |
+| [MOVIN-Unity-Plugin-Core-v3.3.0.unitypackage](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/download/v3.3.0/MOVIN-Unity-Plugin-Core-v3.3.0.unitypackage) | Required receiver scripts and monitor theme; import first |
+| [MOVIN-Unity-Plugin-Samples-v3.3.0.unitypackage](https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/download/v3.3.0/MOVIN-Unity-Plugin-Samples-v3.3.0.unitypackage) | Optional sample characters and scenes; requires Core and URP |
 | `release-manifest.json`, `SHA256SUMS.txt` | Exported asset GUIDs, source commit and file checksums |
 | `verification.json`, `unity-verification.zip` | Installation and regression test results for these package hashes |
 
 Only the two `.unitypackage` files are imported into Unity. The manifest, checksums and test reports
 are release records; keep them outside `Assets`.
 
-1. Import `MOVIN-Unity-Plugin-Core-v3.3.1.unitypackage` through `Assets > Import Package > Custom Package...`.
+1. Import `MOVIN-Unity-Plugin-Core-v3.3.0.unitypackage` through `Assets > Import Package > Custom Package...`.
 2. For your own character, add `MOVIN.MocapReceiver`; sample assets are optional.
-3. To use the sample characters/scenes, install URP and import `MOVIN-Unity-Plugin-Samples-v3.3.1.unitypackage` after Core. Use a URP project or configure its render pipeline first.
+3. To use the sample characters/scenes, install URP and import `MOVIN-Unity-Plugin-Samples-v3.3.0.unitypackage` after Core. Use a URP project or configure its render pipeline first.
 
 Do not import the old all-in-one package after the new Core package. Download generated packages
 from GitHub Releases. Unity Package Manager installation via a Git URL is not supported.
@@ -63,7 +64,7 @@ from GitHub Releases. Unity Package Manager installation via a Git URL is not su
 ### Open the Sample Project
 
 ```bash
-git clone --branch v3.3.1 https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3.git
+git clone --branch v3.3.0 https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3.git
 ```
 
 Open the folder from Unity Hub with Unity `6000.4.10f1`. For development, check out `release` or a
