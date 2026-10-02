@@ -40,7 +40,8 @@ Copy-Item -LiteralPath "$PSScriptRoot/verification/import_check.cs" -Destination
 
 function run_unity([string]$stage, [string[]]$options) {
     $log = "$destination/Logs/$stage.log"
-    $arguments = @('-batchmode','-nographics','-projectPath',"`"$destination`"",'-logFile',"`"$log`"") + $options
+    $arguments = @('-batchmode','-projectPath',"`"$destination`"",'-logFile',"`"$log`"") + $options
+    if ($stage -ne 'tests') { $arguments += '-nographics' }
     $process = Start-Process -FilePath $editor -ArgumentList $arguments -WindowStyle Hidden -PassThru
     while (-not $process.WaitForExit(30000)) { Write-Output "Unity $editor_version $stage is running (PID $($process.Id))." }
     if ($process.ExitCode -ne 0) { throw "Unity $stage failed ($($process.ExitCode)); inspect $log" }

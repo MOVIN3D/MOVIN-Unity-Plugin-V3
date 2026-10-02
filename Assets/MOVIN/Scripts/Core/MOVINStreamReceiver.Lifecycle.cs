@@ -176,7 +176,6 @@ namespace MOVIN
 #endif
                             else if (TryBufferMotionMessage(msg))
                             {
-                                lock (_statusLock) { _motionSource = _remoteAny; }
 #if MOVIN_STREAM_VALIDATION
                                 RecordPrivateRawPacket(msg);
 #endif
@@ -184,7 +183,6 @@ namespace MOVIN
                             }
                             else if (TryBufferPointCloudMessage(msg))
                             {
-                                lock (_statusLock) { _cloudSource = _remoteAny; }
                                 MarkMessageDispatched();
                             }
 #if MOVIN_STREAM_VALIDATION

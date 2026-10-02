@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.3.1] - 2026-10-02
+
+Requires MOVIN Studio 3.3.0 or later; no Studio version change is required.
+
+- Keep motion and point cloud buffers isolated by sender IP and UDP source port.
+  A new sender can take over after two seconds of inactivity; status probes do not claim a stream.
+- Report received FPS from accepted motion frames and complete point clouds on the receive
+  thread, independently of main-thread playback. Synchronize status counter snapshots.
+- Add UDP regression coverage for mixed senders, idle takeover and receive FPS during paused playback.
+- Run package renderer tests with graphics enabled so point cloud rendering is actually verified.
+
 ## [3.3.0] - 2026-09-29
 
 Requires MOVIN Studio 3.3.0 or later. Studio 3.0.0 through 3.2.0 use plugin 3.0.0.
@@ -49,5 +60,6 @@ Requires MOVIN Studio 3.3.0 or later. Studio 3.0.0 through 3.2.0 use plugin 3.0.
 
 - Original release for MOVIN Studio 3.0.0 through 3.2.0 using legacy stream addresses.
 
+[3.3.1]: https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.3.1
 [3.3.0]: https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.3.0
 [3.0.0]: https://github.com/MOVIN3D/MOVIN-Unity-Plugin-V3/releases/tag/v3.0.0
