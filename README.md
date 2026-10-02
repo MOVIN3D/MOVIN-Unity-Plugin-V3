@@ -4,10 +4,9 @@ Receive MOVIN Studio motion and point clouds over OSC/UDP, animate Unity charact
 receiver status, character compatibility and received FPS back to Studio. Requires MOVIN Studio
 `v3.3.0` or later.
 
-**v3.3.0 was refreshed on 2026-09-29.** The current Core package excludes internal Stream Validation
-code, settings, log capture and monitor rows. If you installed the initial v3.3.0 package, download
-the current files and follow [Update an Existing Installation](#update-an-existing-installation).
-The version number is unchanged; use the current release checksums to identify the package.
+**v3.3.0 was refreshed on 2026-10-02** to fix sender isolation and received FPS reporting.
+The version is unchanged; use the current release checksums to identify this build.
+See [Update an Existing Installation](#update-an-existing-installation) before importing.
 
 ## Which Version Do I Need?
 
@@ -74,7 +73,7 @@ old package binary; the current source project does not require it.
 
 ### Update an Existing Installation
 
-These steps apply to v3.0.0, namespace previews and the initial v3.3.0 package:
+These steps apply to v3.0.0, namespace previews and all v3.3.0 packages:
 
 1. Back up or commit your Unity project, then close Unity.
 2. Move `Assets/MOVIN/Scripts/Core` **and `Assets/MOVIN/Scripts/Core.meta` outside `Assets`**.
@@ -185,6 +184,8 @@ MOVIN motion frames are buffered by frame index on the socket receive thread and
 
 A sender restart can reset its frame counter. After one second without an accepted motion frame, the receiver clears its frame ordering baseline and accepts the new stream. Ordinary late packets before that timeout remain ignored. The current protocol has no session identifier, so this is timeout-based recovery; a sufficiently delayed packet after an idle period cannot be distinguished from a new session.
 
+Motion and point clouds each retain their active sender's IP address and UDP source port. Another sender can take over after two seconds without accepted data on that stream; takeover clears the previous sender's buffered frames. Status requests do not take ownership of either stream.
+
 A newer frame or 50 ms without a newer frame makes the current frame eligible for playback. UDP can still lose or reorder individual bone packets; this protocol does not declare the expected bone count or a frame-end marker. Monitor latency measures local buffering delay, not network end-to-end latency.
 
 Malformed OSC messages, unsupported argument types, non-finite pose values, and zero-length quaternions are rejected before application. OSC bundle nesting is limited to 16 levels. Unknown addresses, including internal Stream Validation controls, are ignored on the receive thread in user packages.
@@ -231,8 +232,9 @@ Received FPS: Motion 60.0 fps | Pointcloud 60.0 fps
 Unknown values are `-`. Any `MISMATCH` adds a red reminder below Match to check that Studio and
 Unity use the same character model. Motion and point cloud FPS are green at 57 or above (95% of
 60 FPS), red below 57. Stopped, disabled, expired or wrong-sender data cannot display an old FPS.
-A plain `MOVINStreamReceiver` reports processing FPS but has no target character to compare.
-Point cloud FPS confirms complete-cloud delivery on the main thread, not rendering.
+Motion FPS counts newly accepted motion frames on the receive thread; point cloud FPS counts
+complete clouds assembled there. Both are independent of main-thread application and rendering.
+A plain `MOVINStreamReceiver` reports these receive rates but has no target character to compare.
 
 For `MocapReceiver`, Studio also compares the sender and target **character names, full skeleton
 bone counts, and complete sets of bone names** independently. Both counts include the full skeleton,
@@ -293,7 +295,7 @@ CHANGELOG.md
 ## Development
 
 Release maintenance is documented in [docs/releasing.md](docs/releasing.md). The attached release
-reports cover Core-only imports, fresh Core/Samples installs, v3.0.0 upgrades and initial v3.3.0
+reports cover Core-only imports, fresh Core/Samples installs, v3.0.0 upgrades and v3.3.0
 refreshes in the two Editor versions listed above. Standalone Player/IL2CPP and cross-machine
 firewall configurations were not tested in this release run.
 

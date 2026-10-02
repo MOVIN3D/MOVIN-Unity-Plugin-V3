@@ -34,12 +34,12 @@ namespace MOVIN
             {
                 _statusRequest = null;
                 _statusReply = _statusSource = _motionSource = _cloudSource = null;
+                _statusRequestedAt = _statusSentAt = _statusMotionAt = _statusCloudAt = 0;
+                _statusSampleAt = Stopwatch.GetTimestamp();
+                _statusMotionFrame = -1;
+                _statusPointCount = _statusMotionCount = _statusCloudCount = 0;
+                _statusMotionFps = _statusCloudFps = 0;
             }
-            _statusRequestedAt = _statusSentAt = _statusMotionAt = _statusCloudAt = 0;
-            _statusSampleAt = Stopwatch.GetTimestamp();
-            _statusMotionFrame = -1;
-            _statusPointCount = _statusMotionCount = _statusCloudCount = 0;
-            _statusMotionFps = _statusCloudFps = 0;
             StatusMatchedBones = StatusMissingBones = 0;
         }
 
@@ -69,21 +69,25 @@ namespace MOVIN
         private void ReplyToStudio()
         {
             var now = Stopwatch.GetTimestamp();
-            var elapsed = (now - _statusSampleAt) / (double)Stopwatch.Frequency;
-            if (elapsed >= 1)
-            {
-                _statusMotionFps = (float)(_statusMotionCount / elapsed);
-                _statusCloudFps = (float)(_statusCloudCount / elapsed);
-                _statusMotionCount = _statusCloudCount = 0;
-                _statusSampleAt = now;
-            }
-
             string token = null;
             IPEndPoint reply = null;
             var motionSourceMatches = false;
             var cloudSourceMatches = false;
+            (int Frame, float Fps, long At) motion;
+            (int Points, float Fps, long At) cloud;
             lock (_statusLock)
             {
+                now = Stopwatch.GetTimestamp();
+                var elapsed = (now - _statusSampleAt) / (double)Stopwatch.Frequency;
+                if (elapsed >= 1)
+                {
+                    _statusMotionFps = (float)(_statusMotionCount / elapsed);
+                    _statusCloudFps = (float)(_statusCloudCount / elapsed);
+                    _statusMotionCount = _statusCloudCount = 0;
+                    _statusSampleAt = now;
+                }
+                motion = (_statusMotionFrame, _statusMotionFps, _statusMotionAt);
+                cloud = (_statusPointCount, _statusCloudFps, _statusCloudAt);
                 if (_running && _statusRequest != null
                     && (now - _statusSentAt) / (double)Stopwatch.Frequency >= 0.5)
                 {
@@ -108,14 +112,14 @@ namespace MOVIN
                 WriteInt(2);
                 WriteString(name.Length > 128 ? name.Substring(0, 128) : name);
                 WriteInt(AppliesToCharacter ? 1 : 0);
-                WriteInt(_statusMotionFrame);
-                WriteFloat(_statusMotionFps);
-                WriteFloat(Age(_statusMotionAt));
+                WriteInt(motion.Frame);
+                WriteFloat(motion.Fps);
+                WriteFloat(Age(motion.At));
                 WriteInt(StatusMatchedBones);
                 WriteInt(StatusMissingBones);
-                WriteInt(_statusPointCount);
-                WriteFloat(_statusCloudFps);
-                WriteFloat(Age(_statusCloudAt));
+                WriteInt(cloud.Points);
+                WriteFloat(cloud.Fps);
+                WriteFloat(Age(cloud.At));
                 WriteInt((int)Math.Min(int.MaxValue, Interlocked.Read(ref _processingErrors)));
                 WriteString(_rootAddress);
                 WriteInt(motionSourceMatches ? 1 : 0);

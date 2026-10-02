@@ -15,6 +15,7 @@ namespace MOVIN
         private const double FrameStalenessSeconds = 0.05;
         // The wire format has no session id. Recover after one second without an accepted frame.
         private const double StreamRestartSeconds = 1.0;
+        private const double SourceTimeoutSeconds = 2.0;
         private const int MaxBonesPerFrame = 1024;
 
         protected class FramePose
@@ -220,8 +221,11 @@ namespace MOVIN
         {
             lock (_frameLock)
             {
-                var frame = GetFrameForBufferLocked(wireFrame);
-                frame?.SetRoot(rootName, position, rotation, scale);
+                if (AcceptMotionSource())
+                {
+                    var frame = GetFrameForBufferLocked(wireFrame);
+                    frame?.SetRoot(rootName, position, rotation, scale);
+                }
             }
         }
 
@@ -229,8 +233,32 @@ namespace MOVIN
         {
             lock (_frameLock)
             {
-                var frame = GetFrameForBufferLocked(wireFrame);
-                frame?.SetBone(boneName, position, rotation);
+                if (AcceptMotionSource())
+                {
+                    var frame = GetFrameForBufferLocked(wireFrame);
+                    frame?.SetBone(boneName, position, rotation);
+                }
+            }
+        }
+
+        // Called under _frameLock after validating the incoming pose.
+        private bool AcceptMotionSource()
+        {
+            lock (_statusLock)
+            {
+                var available = _motionSource == null || Equals(_motionSource, _remoteAny)
+                    || (Stopwatch.GetTimestamp() - _lastAcceptedFrameTimestamp) / (double)Stopwatch.Frequency >= SourceTimeoutSeconds;
+                if (available && !Equals(_motionSource, _remoteAny))
+                {
+                    ClearFrameBuffer();
+                    lock (_monitorLock) { _lastAppliedFrameForMonitor = int.MinValue; }
+                    _motionSource = _remoteAny;
+                    _statusMotionFrame = -1;
+                    _statusMotionAt = 0;
+                    _statusMotionCount = 0;
+                    _statusMotionFps = 0;
+                }
+                return available;
             }
         }
 
@@ -246,6 +274,7 @@ namespace MOVIN
                 {
                     _lastAppliedFrameForMonitor = int.MinValue;
                 }
+                lock (_statusLock) { _statusMotionFrame = -1; }
             }
             if (frame <= _lastAppliedBufferedFrame)
                 return null;
@@ -278,6 +307,13 @@ namespace MOVIN
                 lock (_monitorLock)
                 {
                     _inputFramesReceived++;
+                }
+                // Count each accepted wire frame once, independently of main-thread playback.
+                lock (_statusLock)
+                {
+                    _statusMotionFrame = Math.Max(_statusMotionFrame, frame);
+                    _statusMotionAt = now;
+                    _statusMotionCount++;
                 }
 
                 // Keep at most the configured completed backlog plus the frame being received.
@@ -396,9 +432,6 @@ namespace MOVIN
             {
                 ApplyFramePose(frame);
                 MarkMonitorPoseApplied(frame);
-                _statusMotionFrame = frame.Frame;
-                _statusMotionAt = Stopwatch.GetTimestamp();
-                _statusMotionCount++;
             }
             finally
             {

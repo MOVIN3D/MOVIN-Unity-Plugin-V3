@@ -8,6 +8,10 @@ Exception: the maintainer explicitly requested refreshing v3.3.0 on 2026-09-29 t
 Stream Validation. The original release metadata, tag and files are backed up locally. The release
 notes identify the reissue and new checksums. This is not the default policy for future releases.
 
+The maintainer explicitly requested another v3.3.0 refresh on 2026-10-02 for sender isolation
+and received FPS fixes. The preceding release metadata, tag and files are backed up locally;
+the release notes identify this reissue and its checksums. The default patch policy is unchanged.
+
 `release.json` owns the version and export paths. Update it, README, Assets/Readme.asset and
 CHANGELOG together. A plugin patch (for example 3.3.1) does not require Studio 3.3.1; record the
 supported Studio range separately. List verified Unity versions rather than promising every

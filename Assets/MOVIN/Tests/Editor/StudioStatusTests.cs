@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Linq;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -66,7 +68,7 @@ namespace MOVIN.Tests
             Assert.That(message.Args[18], Is.EqualTo("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"));
         }
 
-        [Test] public void StatusCountsOnlyProcessedMotionAndCompleteClouds()
+        [Test] public void StatusCountsReceivedMotionAndCompleteClouds()
         {
             Send("/MOVIN/Unity/Bone", ",isfffffff", 10, "Hips", 1f, 2f, 3f, 0f, 0f, 0f, 1f);
             Send("/MOVIN/PointCloud", ",iiiiifff", 1, 101, 1, 2, 1, 1f, 2f, 3f);
@@ -108,6 +110,79 @@ namespace MOVIN.Tests
             Request();
             Call("Update");
             Assert.That(Receive().Args[14], Is.EqualTo(0));
+        }
+
+        [Test] public void MotionSourcesCannotMixAndIdleHandoverClearsThePreviousPose()
+        {
+            Send("/MOVIN/Unity/Bone", ",isfffffff", 100, "Hips", 1f, 0f, 0f, 0f, 0f, 0f, 1f);
+            WaitMessages(1);
+            using var other = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+            SendOther(100, "Head");
+            WaitMessages(2);
+            Assert.That(Bones(), Is.EqualTo(new[] { "Hips" }));
+            Assert.That(((IPEndPoint)Get("_motionSource")).Port, Is.EqualTo(((IPEndPoint)_sender.Client.LocalEndPoint).Port));
+
+            Set("_lastAcceptedFrameTimestamp", Stopwatch.GetTimestamp() - Stopwatch.Frequency * 3);
+            SendOther(0, "Head");
+            WaitMessages(3);
+            Assert.That(Bones(), Is.EqualTo(new[] { "Head" }));
+            Assert.That(Get("_statusMotionFrame"), Is.EqualTo(0));
+            Send("/MOVIN/Unity/Bone", ",isfffffff", 999, "Hips", 1f, 0f, 0f, 0f, 0f, 0f, 1f);
+            WaitMessages(4);
+            Assert.That(Bones(), Is.EqualTo(new[] { "Head" }));
+            Request();
+            Call("ReplyToStudio");
+            Assert.That(Receive().Args[14], Is.EqualTo(0));
+
+            void SendOther(int frame, string name)
+            {
+                var bytes = Packet("/MOVIN/Unity/Bone", ",isfffffff", frame, name, 9f, 0f, 0f, 0f, 0f, 0f, 1f);
+                other.Send(bytes, bytes.Length, _destination);
+            }
+            string[] Bones() => ((IDictionary)Get("_frameBuffer")).Values.Cast<object>()
+                .SelectMany(f => ((IEnumerable)f.GetType().GetProperty("Bones").GetValue(f)).Cast<object>())
+                .Select(b => (string)b.GetType().GetProperty("Name").GetValue(b)).ToArray();
+        }
+
+        [Test] public void PointCloudSourcesCannotCompleteEachOthersChunks()
+        {
+            using var other = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+            var first = new object[] { 100, 101, 0, 2, 100 }.Concat(Enumerable.Repeat<object>(1f, 300)).ToArray();
+            Send("/MOVIN/PointCloud", ",iiiii" + new string('f', 300), first);
+            WaitMessages(1);
+            var tail = Packet("/MOVIN/PointCloud", ",iiiiifff", 100, 101, 1, 2, 1, 9f, 9f, 9f);
+            other.Send(tail, tail.Length, _destination);
+            WaitMessages(2);
+            Assert.That(Get("_statusCloudCount"), Is.EqualTo(0));
+            Assert.That(((IPEndPoint)Get("_cloudSource")).Port, Is.EqualTo(((IPEndPoint)_sender.Client.LocalEndPoint).Port));
+            Set("_lastPointCloudTimestamp", Stopwatch.GetTimestamp() - Stopwatch.Frequency * 3);
+            other.Send(tail, tail.Length, _destination);
+            WaitMessages(3);
+            Assert.That(Get("_statusCloudCount"), Is.EqualTo(0), "Handover must discard the previous sender's first chunk.");
+            var bytes = Packet("/MOVIN/PointCloud", ",iiiii" + new string('f', 300), first);
+            other.Send(bytes, bytes.Length, _destination);
+            WaitMessages(4);
+            Assert.That(Get("_statusCloudCount"), Is.EqualTo(1));
+        }
+
+        [Test] public void ReceivedFpsCountsAllFramesWhileMainThreadPlaybackIsPaused()
+        {
+            for (var i = 0; i < 60; i++)
+                Send("/MOVIN/Unity/Bone", ",isfffffff", i, "Hips", 1f, 0f, 0f, 0f, 0f, 0f, 1f);
+            for (var i = 0; i < 10; i++)
+                Send("/MOVIN/PointCloud", ",iiiiifff", i, 1, 0, 1, 1, 1f, 2f, 3f);
+            WaitMessages(70);
+            Send("/MOVIN/Unity/Bone", ",isfffffff", 59, "Hips", 1f, 0f, 0f, 0f, 0f, 0f, 1f);
+            Send("/MOVIN/PointCloud", ",iiiiifff", 9, 1, 0, 1, 1, 1f, 2f, 3f);
+            WaitMessages(72);
+            Assert.That(Get("_statusMotionCount"), Is.EqualTo(60));
+            Assert.That(Get("_statusCloudCount"), Is.EqualTo(10));
+            Request();
+            Set("_statusSampleAt", Stopwatch.GetTimestamp() - Stopwatch.Frequency);
+            Call("ReplyToStudio");
+            var reply = Receive();
+            Assert.That((float)reply.Args[5], Is.InRange(59f, 60f));
+            Assert.That((float)reply.Args[10], Is.InRange(9f, 10f));
         }
 
         [Test] public void CharacterStatusCountsActualTransformMatchesInTheLastAppliedFrame()

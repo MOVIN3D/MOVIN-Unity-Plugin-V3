@@ -61,12 +61,26 @@ namespace MOVIN
             lock (_pointCloudLock)
             {
                 var now = Stopwatch.GetTimestamp();
-                if (_lastPointCloudTimestamp != 0
+                bool available;
+                lock (_statusLock)
+                {
+                    available = _cloudSource == null || Equals(_cloudSource, _remoteAny)
+                        || (now - _lastPointCloudTimestamp) / (double)Stopwatch.Frequency >= SourceTimeoutSeconds;
+                    if (available && !Equals(_cloudSource, _remoteAny))
+                    {
+                        ClearPointCloudBuffer();
+                        _cloudSource = _remoteAny;
+                        _statusCloudAt = 0;
+                        _statusPointCount = _statusCloudCount = 0;
+                        _statusCloudFps = 0;
+                    }
+                }
+                if (available && _lastPointCloudTimestamp != 0
                     && (now - _lastPointCloudTimestamp) / (double)Stopwatch.Frequency >= 1.0)
                 {
                     ClearPointCloudBuffer();
                 }
-                if (frame > _lastPointCloudFrame)
+                if (available && frame > _lastPointCloudFrame)
                 {
                     _lastPointCloudTimestamp = now;
                     if (!_pointCloudFrames.TryGetValue(frame, out var cloud))
@@ -103,6 +117,15 @@ namespace MOVIN
                             }
                             cloud.Chunks[chunk] = true;
                             cloud.Received++;
+                            if (cloud.Received == cloud.Chunks.Length)
+                            {
+                                lock (_statusLock)
+                                {
+                                    _statusPointCount = total;
+                                    _statusCloudAt = now;
+                                    _statusCloudCount++;
+                                }
+                            }
                         }
                     }
                 }
@@ -134,9 +157,6 @@ namespace MOVIN
             if (points != null)
             {
                 OnPointCloud?.Invoke(frame, points);
-                _statusPointCount = points.Length;
-                _statusCloudAt = Stopwatch.GetTimestamp();
-                _statusCloudCount++;
             }
         }
     }
